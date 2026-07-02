@@ -1,0 +1,34 @@
+# KDocs raw data files
+kdocs_data/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Temp files
+*.tmp
+*.temp
+
+# Python scripts (keep the main data generator)
+*.py
+!generate_data_from_kdocs_direct.py
+
+# Excel files
+*.xlsx
+
+# IDE/Editor
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# WorkBuddy
+.workbuddy/
+
+# Other data files (keep only dashboard.html + data.js for Pages)
+dashboard_data.json
+store_files/
+合并结果.xlsx
+途峰数据搭建雏形统计表.xlsx
