@@ -59,6 +59,39 @@ body{font-family:'Microsoft YaHei','Segoe UI',sans-serif;background:#f0f2f5;colo
 .chart-container.short{height:280px}
 .chart-container.pie{height:340px}
 @media(max-width:1200px){.chart-grid.two,.chart-grid.three{grid-template-columns:1fr}}
+@media(max-width:768px){
+  .header{padding:10px 14px}
+  .header h1{font-size:16px}
+  .filters{gap:6px}
+  .filter-date select{font-size:11px;padding:4px 8px}
+  .multiselect-trigger{font-size:11px;padding:4px 8px;min-width:80px}
+  .tabs{gap:2px;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .tab-btn{padding:6px 12px;font-size:12px;white-space:nowrap;flex-shrink:0}
+  .tab-content{padding:12px 10px}
+  .kpi-row{gap:8px;margin-bottom:12px}
+  .kpi-card{padding:12px 14px;min-width:140px}
+  .kpi-card .kpi-value{font-size:22px}
+  .kpi-card .kpi-label{font-size:11px}
+  .chart-box{padding:12px}
+  .chart-container{height:260px}
+  .chart-container.tall{height:300px}
+  .chart-container.short{height:240px}
+  .chart-container.pie{height:280px}
+}
+@media(max-width:480px){
+  .header{padding:8px 10px}
+  .header h1{font-size:14px}
+  .header-top{margin-bottom:6px}
+  .filters{flex-direction:column;gap:4px}
+  .tab-btn{padding:5px 10px;font-size:11px}
+  .kpi-row{gap:6px}
+  .kpi-card{flex:1 1 100%;min-width:0;padding:10px 12px}
+  .kpi-card .kpi-value{font-size:20px}
+  .chart-container{height:240px}
+  .chart-container.tall{height:260px}
+  .chart-container.short{height:220px}
+  .chart-container.pie{height:250px}
+}
 </style>
 </head>
 <body>
