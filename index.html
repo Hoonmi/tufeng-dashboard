@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>途峰集团数据仪表盘</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Microsoft YaHei','Segoe UI',sans-serif;background:#f0f2f5;color:#333}
+.header{background:linear-gradient(135deg,#1a237e,#283593);color:#fff;padding:14px 24px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.header-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.header h1{font-size:20px;font-weight:700}
+.header h1 span{color:#64b5f6}
+.filters{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.filter-group{position:relative;display:flex;align-items:center;gap:4px}
+.filter-group>label{font-size:12px;opacity:.85;white-space:nowrap}
+.multiselect{position:relative;cursor:pointer;user-select:none}
+.multiselect-trigger{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);border-radius:4px;padding:5px 10px;font-size:12px;color:#fff;min-width:100px;display:flex;align-items:center;gap:6px}
+.multiselect-trigger .arrow{font-size:10px;margin-left:auto}
+.multiselect-trigger .count{background:rgba(255,255,255,.3);border-radius:10px;padding:0 6px;font-size:10px}
+.multiselect-drop{display:none;position:absolute;top:100%;left:0;margin-top:2px;background:#1a237e;border:1px solid rgba(255,255,255,.3);border-radius:6px;min-width:200px;max-height:300px;overflow-y:auto;z-index:200;padding:6px 0;box-shadow:0 4px 16px rgba(0,0,0,.3)}
+.multiselect-drop.open{display:block}
+.multiselect-item{display:flex;align-items:center;gap:8px;padding:6px 12px;font-size:12px;color:#fff;cursor:pointer}
+.multiselect-item:hover{background:rgba(255,255,255,.1)}
+.multiselect-item input[type=checkbox]{accent-color:#64b5f6}
+.multiselect-actions{display:flex;gap:8px;padding:6px 12px;border-top:1px solid rgba(255,255,255,.15);margin-top:4px}
+.multiselect-actions button{flex:1;background:rgba(255,255,255,.15);border:none;color:#fff;padding:4px 0;border-radius:3px;font-size:11px;cursor:pointer}
+.multiselect-actions button:hover{background:rgba(255,255,255,.25)}
+.filter-date select{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;padding:5px 10px;border-radius:4px;font-size:12px;cursor:pointer;outline:none}
+.filter-date select option{background:#283593;color:#fff}
+.tabs{display:flex;gap:4px;margin-top:10px}
+.tab-btn{background:rgba(255,255,255,.12);border:none;color:rgba(255,255,255,.7);padding:7px 20px;font-size:13px;cursor:pointer;border-radius:6px 6px 0 0;transition:all .2s;font-weight:500}
+.tab-btn:hover{background:rgba(255,255,255,.2);color:#fff}
+.tab-btn.active{background:#f0f2f5;color:#1a237e;font-weight:700}
+.tab-content{display:none;padding:20px}
+.tab-content.active{display:block}
+.kpi-row{display:flex;gap:16px;margin-bottom:20px;flex-wrap:wrap}
+.kpi-card{flex:1;min-width:180px;background:#fff;border-radius:10px;padding:16px 20px;box-shadow:0 2px 8px rgba(0,0,0,.06);position:relative;overflow:hidden}
+.kpi-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px}
+.kpi-card.blue::before{background:#42a5f5}
+.kpi-card.green::before{background:#66bb6a}
+.kpi-card.orange::before{background:#ff9800}
+.kpi-card.purple::before{background:#ab47bc}
+.kpi-card .kpi-label{font-size:12px;color:#888;margin-bottom:4px}
+.kpi-card .kpi-value{font-size:26px;font-weight:700;color:#333}
+.kpi-card .kpi-unit{font-size:13px;color:#999;margin-left:3px}
+.kpi-card .kpi-sub{font-size:11px;margin-top:4px}
+.kpi-sub.up{color:#e53935}
+.kpi-sub.down{color:#43a047}
+.chart-grid{display:grid;gap:16px}
+.chart-grid.two{grid-template-columns:1fr 1fr}
+.chart-grid.three{grid-template-columns:1fr 1fr 1fr}
+.chart-grid.full{grid-template-columns:1fr}
+.chart-box{background:#fff;border-radius:10px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.chart-box .chart-title{font-size:14px;font-weight:600;margin-bottom:8px;color:#333;padding-left:8px;border-left:3px solid #42a5f5}
+.chart-container{width:100%;height:320px}
+.chart-container.tall{height:380px}
+.chart-container.short{height:280px}
+.chart-container.pie{height:340px}
+@media(max-width:1200px){.chart-grid.two,.chart-grid.three{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="header">
+<div class="header-top">
+<h1>途峰集团 <span>数据仪表盘</span></h1>
+</div>
+<div class="filters">
+<div class="filter-group filter-date">
+  <label>日期区间：</label><select id="filterMonthStart"><option value="">起始月</option></select>
+  <span style="color:rgba(255,255,255,.6);font-size:12px">至</span>
+  <select id="filterMonthEnd"><option value="">结束月</option></select>
+</div>
+<div class="filter-group">
+  <label>门店：</label>
+  <div class="multiselect" id="msStore">
+    <div class="multiselect-trigger" id="msStoreTrigger"><span>全部门店</span><span class="count"></span><span class="arrow">▼</span></div>
+    <div class="multiselect-drop" id="msStoreDrop">
+      <div class="multiselect-actions"><button onclick="selectAll('msStore')">全选</button><button onclick="clearAll('msStore')">清空</button></div>
+    </div>
+  </div>
+</div>
+<div class="filter-group">
+  <label>车型：</label>
+  <div class="multiselect" id="msModel">
+    <div class="multiselect-trigger" id="msModelTrigger"><span>全部车型</span><span class="count"></span><span class="arrow">▼</span></div>
+    <div class="multiselect-drop" id="msModelDrop">
+      <div class="multiselect-actions"><button onclick="selectAll('msModel')">全选</button><button onclick="clearAll('msModel')">清空</button></div>
+    </div>
+  </div>
+</div>
+</div>
+<div class="tabs">
+<button class="tab-btn active" onclick="switchTab('sales',this)">销售仪表盘</button>
+<button class="tab-btn" onclick="switchTab('delivery',this)">交付仪表盘</button>
+<button class="tab-btn" onclick="switchTab('aftersales',this)">售后仪表盘</button>
+<button class="tab-btn" onclick="switchTab('jipan',this)">基盘数</button>
+</div>
+</div>
+
+<!-- 销售仪表盘 -->
+<div id="tab-sales" class="tab-content active">
+<div class="kpi-row" id="salesKpi"></div>
+<div class="chart-grid two" style="margin-bottom:16px">
+<div class="chart-box"><div class="chart-title">当日门店大定明细</div><div id="salesStoreDaily" class="chart-container"></div></div>
+<div class="chart-box"><div class="chart-title">当日大定车型分布</div><div id="salesModelDaily" class="chart-container"></div></div>
+</div>
+<div class="chart-grid two" style="margin-bottom:16px">
+<div class="chart-box"><div class="chart-title">当月门店大定排名</div><div id="salesStoreMonth" class="chart-container"></div></div>
+<div class="chart-box"><div class="chart-title">月度大定环比趋势 (2026)</div><div id="salesMoM" class="chart-container"></div></div>
+</div>
+<div class="chart-grid two" style="margin-bottom:16px">
+<div class="chart-box"><div class="chart-title">年度各门店大定合计排名</div><div id="salesStoreRank" class="chart-container"></div></div>
+<div class="chart-box"><div class="chart-title">车型同比</div><div id="salesModelYoY" class="chart-container"></div></div>
+</div>
+<div class="chart-grid full" style="margin-bottom:16px">
+<div class="chart-box"><div class="chart-title">大定同比</div><div id="salesYoY" class="chart-container"></div></div>
+</div>
+</div>
+
+<!-- 交付仪表盘 -->
+<div id="tab-delivery" class="tab-content">
+<div class="kpi-row" id="deliveryKpi"></div>
+<div class="chart-grid two" style="margin-bottom:16px">
+<div class="chart-box"><div class="chart-title">当日交付车型台数和占比</div><div id="deliveryModelDaily" class="chart-container"></div></div>
+<div class="chart-box"><div class="chart-title">当日门店交付台数</div><div id="deliveryStoreDaily" class="chart-container"></div></div>
+</div>
+<div class="chart-grid two" style="margin-bottom:16px">
+<div class="chart-box"><div class="chart-title">当月交付门店排名</div><div id="deliveryStoreMonth" class="chart-container"></div></div>
+<div class="chart-box"><div class="chart-title">月度交付台数和环比 (2026)</div><div id="deliveryMonthlyMoM" class="chart-container tall"></div></div>
+</div>
+<div class="chart-grid full" style="margin-bottom:16px">
+<div class="chart-box"><div class="chart-title">年度门店交付台数</div><div id="deliveryStoreAnnual" class="chart-container"></div></div>
+</div>
+<div class="chart-grid two" style="margin-bottom:16px">
+<div class="chart-box"><div class="chart-title">交付同比</div><div id="deliveryYoY" class="chart-container short"></div></div>
+<div class="chart-box"><div class="chart-title">车型同比</div><div id="deliveryModelYoY" class="chart-container short"></div></div>
+</div>
+</div>
+
+<!-- 售后仪表盘 -->
+<div id="tab-aftersales" class="tab-content">
+<div class="kpi-row" id="aftersalesKpi"></div>
+<div class="chart-grid two" style="margin-bottom:16px">
+<div class="chart-box"><div class="chart-title">月度进厂台次环比 (2026)</div><div id="aftersalesCountMoM" class="chart-container"></div></div>
+<div class="chart-box"><div class="chart-title">月度产值环比 (2026)</div><div id="aftersalesValueMoM" class="chart-container"></div></div>
+</div>
+<div class="chart-grid two" style="margin-bottom:16px">
+<div class="chart-box"><div class="chart-title">各门店累计台次排名</div><div id="aftersalesStoreRank" class="chart-container"></div></div>
+<div class="chart-box"><div class="chart-title">各门店累计产值排名</div><div id="aftersalesValueRank" class="chart-container"></div></div>
+</div>
+<div class="chart-grid two" style="margin-bottom:16px">
+<div class="chart-box"><div class="chart-title">当月门店台次排名</div><div id="aftersalesStoreMonth" class="chart-container"></div></div>
+<div class="chart-box"><div class="chart-title">进厂属性分布</div><div id="aftersalesModelPie" class="chart-container pie"></div></div>
+</div>
+</div>
+
+<!-- 基盘数 -->
+<div id="tab-jipan" class="tab-content">
+<div class="kpi-row" id="jipanKpi"></div>
+<div class="chart-grid full" style="margin-bottom:16px">
+<div class="chart-box"><div class="chart-title">各门店基盘数排名</div><div id="jipanStoreRank" class="chart-container"></div></div>
+</div>
+</div>
+
+<script src="data.js"></script>
+<script>
+// ============ 全局状态 ============
+var charts = {};
+var selectedStores = [];
+var selectedModels = [];
+var filterMonthStart = '';
+var filterMonthEnd = '';
+
+function getYM(d) { return d.substring(0,7); }
+function getY(d) { return parseInt(d.substring(0,4)); }
+function getM(d) { return parseInt(d.substring(5,7)); }
+
+function getLatestDate(data) {
+  if (!data.length) return '';
+  var dates = data.map(function(r){return r.date}).filter(Boolean).sort();
+  return dates.length ? dates[dates.length-1] : '';
+}
+
+function getPrevMonth(ym) {
+  if (!ym) return '';
+  var y = parseInt(ym.substring(0,4)), m = parseInt(ym.substring(5,7));
+  m--; if (m<1) { m=12; y--; }
+  return y + '-' + (m<10?'0'+m:m);
+}
+
+function getSameMonthLY(ym) {
+  if (!ym) return '';
+  return (parseInt(ym.substring(0,4))-1) + '-' + ym.substring(5,7);
+}
+
+function calcMoM(curr, prev) {
+  if (!prev || prev===0) return null;
+  return ((curr-prev)/prev*100);
+}
+
+function fmtPct(v) {
+  if (v===null||v===undefined||isNaN(v)) return '--';
+  return (v>=0?'+':'')+v.toFixed(1)+'%';
+}
+
+function fmtYoY(curr, prev) {
+  if (!prev || prev===0) return '--';
+  var pct = ((curr-prev)/prev*100);
+  var diff = curr - prev;
+  var arrow = pct>=0 ? '▲' : '▼';
+  return arrow + ' ' + fmtPct(pct) + '（' + (diff>=0?'+':'') + diff + '台）';
+}
+
+function fmtNum(v) { return v==null?'--':Math.round(v).toLocaleString(); }
+
+function getChart(id) {
+  if (!charts[id]) charts[id] = echarts.init(document.getElementById(id));
+  return charts[id];
+}
+
+// 获取某年数据中存在的月份列表
+function getMonthsInYear(data, year) {
+  var months = new Set();
+  data.forEach(function(r) {
+    if (getY(r.date) === year) months.add(getM(r.date));
+  });
+  return Array.from(months).sort(function(a,b){return a-b});
+}
+
+// ============ 数据筛选 ============
+function inDateRange(ym) {
+  if (!filterMonthStart && !filterMonthEnd) return true;
+  if (filterMonthStart && filterMonthEnd) return ym >= filterMonthStart && ym <= filterMonthEnd;
+  if (filterMonthStart) return ym >= filterMonthStart;
+  if (filterMonthEnd) return ym <= filterMonthEnd;
+  return true;
+}
+
+function filterSales() {
+  return rawData.sales.filter(function(r) {
+    if (!inDateRange(getYM(r.date))) return false;
+    if (selectedStores.length && selectedStores.indexOf(r.store)<0) return false;
+    if (selectedModels.length && selectedModels.indexOf(r.model)<0) return false;
+    return true;
+  });
+}
+
+function filterDelivery() {
+  return rawData.delivery.filter(function(r) {
+    if (!inDateRange(getYM(r.date))) return false;
+    if (selectedStores.length && selectedStores.indexOf(r.store)<0) return false;
+    if (selectedModels.length>0) {
+      var hasModel = selectedModels.some(function(m) {
+        return r[m.toLowerCase()] > 0;
+      });
+      if (!hasModel) return false;
+    }
+    return true;
+  });
+}
+
+function filterAftersales() {
+  return rawData.aftersales.filter(function(r) {
+    if (!inDateRange(getYM(r.date))) return false;
+    if (selectedStores.length && selectedStores.indexOf(r.store)<0) return false;
+    return true;
+  });
+}
+
+// 当日 = 昨天（头天），当月 = 昨天所在月份
+function getTodayStr() {
+  var d = new Date();
+  return d.getFullYear() + '-' + ('0'+(d.getMonth()+1)).slice(-2) + '-' + ('0'+d.getDate()).slice(-2);
+}
+function getYesterdayStr() {
+  var d = new Date();
+  d.setDate(d.getDate() - 1);
+  return d.getFullYear() + '-' + ('0'+(d.getMonth()+1)).slice(-2) + '-' + ('0'+d.getDate()).slice(-2);
+}
+function getRefDay() {
+  return getYesterdayStr();
+}
+function getRefMonth() {
+  return getYesterdayStr().substring(0, 7);
+}
+
+// ============ 多选下拉 ============
+function updateMultiTrigger(msId, arr, total) {
+  var isStore = msId === 'msStore';
+  var allLabel = isStore ? '全部门店' : '全部车型';
+  var trigger = document.getElementById(msId + 'Trigger');
+  var span = trigger.querySelector('span');
+  var count = trigger.querySelector('.count');
+  if (arr.length === 0 || arr.length === total) {
+    span.textContent = allLabel; count.textContent = '';
+  } else if (arr.length === 1) {
+    span.textContent = arr[0].length > 10 ? arr[0].substring(0, 10) + '...' : arr[0];
+    count.textContent = arr.length;
+  } else {
+    span.textContent = '已选'; count.textContent = arr.length;
+  }
+}
+
+function buildMultiCheckboxes(msId) {
+  var isStore = msId === 'msStore';
+  var items = isStore ? allStores : allModels;
+  var selected = isStore ? selectedStores : selectedModels;
+  var drop = document.getElementById(msId + 'Drop');
+  var existing = drop.querySelectorAll('.multiselect-item');
+  existing.forEach(function(el) { el.remove(); });
+
+  items.forEach(function(item) {
+    var div = document.createElement('div');
+    div.className = 'multiselect-item';
+    var cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.value = item;
+    cb.checked = selected.indexOf(item) >= 0;
+    cb.addEventListener('change', function() {
+      var arr = isStore ? selectedStores : selectedModels;
+      if (this.checked) { if (arr.indexOf(this.value) < 0) arr.push(this.value); }
+      else { var idx = arr.indexOf(this.value); if (idx >= 0) arr.splice(idx, 1); }
+      arr.sort();
+      updateMultiTrigger(msId, arr, items.length);
+      refreshAll();
+    });
+    div.appendChild(cb);
+    div.appendChild(document.createTextNode(' ' + item));
+    var actions = drop.querySelector('.multiselect-actions');
+    drop.insertBefore(div, actions);
+  });
+  updateMultiTrigger(msId, selected, items.length);
+}
+
+function selectAll(msId) {
+  var isStore = msId === 'msStore';
+  var items = isStore ? allStores : allModels;
+  var arr = isStore ? selectedStores : selectedModels;
+  arr.length = 0;
+  items.forEach(function(v) { arr.push(v); });
+  arr.sort();
+  buildMultiCheckboxes(msId);
+  refreshAll();
+}
+
+function clearAll(msId) {
+  var isStore = msId === 'msStore';
+  var arr = isStore ? selectedStores : selectedModels;
+  arr.length = 0;
+  buildMultiCheckboxes(msId);
+  refreshAll();
+}
+
+function initMultiSelect(msId) {
+  var trigger = document.getElementById(msId + 'Trigger');
+  var drop = document.getElementById(msId + 'Drop');
+  trigger.onclick = function(e) { e.stopPropagation(); drop.classList.toggle('open'); };
+  document.addEventListener('click', function() { drop.classList.remove('open'); });
+  drop.addEventListener('click', function(e) { e.stopPropagation(); });
+  buildMultiCheckboxes(msId);
+}
+
+// ============ KPI卡片 ============
+function kpiCard(label, value, unit, sub, pct, color) {
+  var subClass = pct!==null ? (pct>=0?'up':'down') : '';
+  var arrow = pct!==null ? (pct>=0?'<span style="font-size:10px">▲</span> ':'<span style="font-size:10px">▼</span> ') : '';
+  return '<div class="kpi-card '+color+'"><div class="kpi-label">'+label+'</div><div class="kpi-value">'+value+'<span class="kpi-unit">'+unit+'</span></div>'+(sub?'<div class="kpi-sub '+subClass+'">'+arrow+sub+'</div>':'')+'</div>';
+}
+
+// ============ Tab切换 ============
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.remove('active')});
+  document.querySelectorAll('.tab-content').forEach(function(c){c.classList.remove('active')});
+  btn.classList.add('active');
+  document.getElementById('tab-'+name).classList.add('active');
+  setTimeout(function() { Object.keys(charts).forEach(function(id){charts[id].resize()}); }, 50);
+}
+
+// ============ 共用的横向排名柱状图 ============
+function renderStoreBarChart(chartId, storeMap, color, titleSuffix) {
+  var arr = Object.keys(storeMap).map(function(k){return {name:k, value:storeMap[k]}}).sort(function(a,b){return b.value-a.value});
+  if (!arr.length) { arr = [{name: '无数据', value: 0}]; }
+  getChart(chartId).setOption({
+    tooltip: {trigger:'axis', axisPointer:{type:'shadow'}},
+    grid: {left:'22%', right:'10%', top:'5%', bottom:'5%'},
+    xAxis: {type:'value', axisLabel:{fontSize:11}},
+    yAxis: {type:'category', data:arr.map(function(d){return d.name}).reverse(), axisLabel:{fontSize:10}},
+    series: [{type:'bar', data:arr.map(function(d){return d.value}).reverse(),
+      itemStyle: {color: color, borderRadius:[0,4,4,0]},
+      label: {show:true, position:'right', fontSize:11}}]
+  }, true);
+}
+
+// ============ 销售仪表盘 ============
+function renderSales() {
+  var data = filterSales();
+  var refDay = getRefDay();
+  var refMonth = getRefMonth();
+  var currYear = parseInt(refMonth.substring(0,4));
+  var prevYear = currYear - 1;
+
+  // 获取2026年有数据的月份范围（用于同比对齐）
+  var compMonths = getMonthsInYear(data, currYear);
+
+  // 当日数据（取头天数据）
+  var dailyData = data.filter(function(r) { return r.date === refDay; });
+  var dailyTotal = dailyData.reduce(function(s,r){return s+r.count},0);
+  var dailyStores = new Set(dailyData.map(function(r){return r.store})).size;
+
+  // 当月合计
+  var monthData = data.filter(function(r) { return getYM(r.date) === refMonth; });
+  var monthTotal = monthData.reduce(function(s,r){return s+r.count},0);
+  var prevMonthTotal = data.filter(function(r){return getYM(r.date)===getPrevMonth(refMonth)}).reduce(function(s,r){return s+r.count},0);
+  var momPct = calcMoM(monthTotal, prevMonthTotal);
+
+  // 同比：同月去年同期
+  var sameMonthLY = getSameMonthLY(refMonth);
+  var lyMonthTotal = data.filter(function(r){return getYM(r.date)===sameMonthLY}).reduce(function(s,r){return s+r.count},0);
+  var yoyPct = calcMoM(monthTotal, lyMonthTotal);
+
+  document.getElementById('salesKpi').innerHTML =
+    kpiCard('当日大定 ('+refDay+')', dailyTotal, '台', '', null, 'blue') +
+    kpiCard('当月大定 ('+refMonth+')', monthTotal, '台', momPct!==null?fmtPct(momPct)+' 环比':'', momPct, 'green') +
+    kpiCard('同比 ('+sameMonthLY+')', lyMonthTotal, '台', yoyPct!==null?fmtPct(yoyPct)+' 同比':'', yoyPct, 'orange') +
+    kpiCard('当月门店数', dailyStores, '家', '', null, 'purple');
+
+  // 当日门店大定明细 (按销量降序)
+  var storeDaily = {};
+  dailyData.forEach(function(r) { storeDaily[r.store] = (storeDaily[r.store] || 0) + r.count; });
+  renderStoreBarChart('salesStoreDaily', storeDaily, '#42a5f5');
+
+  // 当日大定车型分布
+  var modelDaily = {};
+  dailyData.forEach(function(r) { modelDaily[r.model] = (modelDaily[r.model] || 0) + r.count; });
+  var mdArr = Object.keys(modelDaily).map(function(k){return {name:k, value:modelDaily[k]}});
+  getChart('salesModelDaily').setOption({
+    tooltip: {trigger:'item', formatter:'{b}: {c}台 ({d}%)'},
+    legend: {bottom:5, left:'center', fontSize:11},
+    series: [{type:'pie', radius:['40%','70%'], center:['50%','45%'],
+      data: mdArr, itemStyle: {borderRadius:6, borderColor:'#fff', borderWidth:2},
+      label: {formatter:'{b}\n{c}台 ({d}%)', fontSize:11},
+      color: ['#42a5f5','#66bb6a','#ff9800','#ab47bc','#ef5350']}]
+  }, true);
+
+  // 当月门店大定排名 (新增)
+  var storeMonth = {};
+  monthData.forEach(function(r) { storeMonth[r.store] = (storeMonth[r.store] || 0) + r.count; });
+  getChart('salesStoreMonth').setOption({
+    tooltip: {trigger:'axis', axisPointer:{type:'shadow'}},
+    grid: {left:'22%', right:'10%', top:'5%', bottom:'5%'},
+    title: {text: refMonth, right:10, top:5, textStyle:{fontSize:12, color:'#999'}},
+    xAxis: {type:'value', axisLabel:{fontSize:11}},
+    yAxis: {type:'category',
+      data: Object.keys(storeMonth).map(function(k){return {name:k, value:storeMonth[k]}}).sort(function(a,b){return a.value-b.value}).map(function(d){return d.name}),
+      axisLabel:{fontSize:10}},
+    series: [{type:'bar',
+      data: Object.keys(storeMonth).map(function(k){return {name:k, value:storeMonth[k]}}).sort(function(a,b){return a.value-b.value}).map(function(d){return d.value}),
+      itemStyle: {color: new echarts.graphic.LinearGradient(0,0,1,0,[{offset:0,color:'#66bb6a'},{offset:1,color:'#26c6da'}]), borderRadius:[0,4,4,0]},
+      label: {show:true, position:'right', fontSize:11}}]
+  }, true);
+
+  // 年度各门店大定合计排名 (仅2026年，降序)
+  var storeAnnualS26 = {};
+  data.filter(function(r){return getY(r.date)===currYear}).forEach(function(r) {
+    storeAnnualS26[r.store] = (storeAnnualS26[r.store] || 0) + r.count;
+  });
+  var allStoresS = Object.keys(storeAnnualS26).sort(function(a,b){return (storeAnnualS26[a]||0)-(storeAnnualS26[b]||0)});
+  var stArrS26 = allStoresS.map(function(s){return storeAnnualS26[s]||0});
+  getChart('salesStoreRank').setOption({
+    tooltip: {trigger:'axis', axisPointer:{type:'shadow'},
+      formatter: function(params){ return params[0].name+'<br/>'+currYear+'年: '+params[0].value+'台'; }},
+    grid: {left:'22%', right:'10%', top:'5%', bottom:'5%'},
+    xAxis: {type:'value', axisLabel:{fontSize:11}},
+    yAxis: {type:'category', data:allStoresS, axisLabel:{fontSize:10}},
+    series: [
+      {name:currYear+'年', type:'bar', data:stArrS26,
+       itemStyle:{color: new echarts.graphic.LinearGradient(0,0,1,0,[{offset:0,color:'#ff9800'},{offset:1,color:'#ef5350'}]), borderRadius:[0,4,4,0]},
+       label:{show:true, position:'right', fontSize:11}}
+    ]
+  }, true);
+
+  // 月度大定：仅2026年 + 环比
+  var monthlyS26 = {};
+  data.forEach(function(r) {
+    var ym = getYM(r.date), y = getY(r.date);
+    if (y === currYear) monthlyS26[ym] = (monthlyS26[ym] || 0) + r.count;
+  });
+  var allMonthsS = '01,02,03,04,05,06,07,08,09,10,11,12'.split(',');
+  var xLabelsS = allMonthsS.map(function(m){ return m+'月'; });
+  var vals26S = allMonthsS.map(function(m){ return monthlyS26[currYear+'-'+m] || 0; });
+  var momPctsS = vals26S.map(function(v,i){return i>0&&vals26S[i-1]>0 ? calcMoM(v, vals26S[i-1]) : null});
+  getChart('salesMoM').setOption({
+    tooltip: {trigger:'axis',
+      formatter: function(p) {
+        var s = p[0].name + '<br/>' + currYear + '年: ' + p[0].value + '台';
+        if (p[1] && p[1].value!='-' && p[1].value!=null) s += '<br/>' + currYear + '环比: ' + fmtPct(parseFloat(p[1].value));
+        return s;
+      }},
+    grid: {left:'6%', right:'6%', top:'14%', bottom:'12%'},
+    legend: {data:[currYear+'年',currYear+'年环比'], top:3, textStyle:{fontSize:11}},
+    xAxis: {type:'category', data:xLabelsS, axisLabel:{fontSize:10, rotate:30}},
+    yAxis: [
+      {type:'value', name:'台数', axisLabel:{fontSize:10}},
+      {type:'value', name:'环比%', axisLabel:{formatter:'{value}%', fontSize:10}}
+    ],
+    series: [
+      {name:currYear+'年', type:'bar', data:vals26S,
+       itemStyle:{color:'#42a5f5', borderRadius:[4,4,0,0]},
+       label:{show:true, position:'top', fontSize:10, color:'#333'}},
+      {name:currYear+'年环比', type:'line', yAxisIndex:1,
+       data:momPctsS.map(function(v){return v==null?'-':v.toFixed(1)}),
+       itemStyle:{color:'#e53935'}, lineStyle:{width:2}, symbol:'circle', symbolSize:6,
+       label:{show:true, formatter:function(p){return p.value=='-'?'':(parseFloat(p.value)>=0?'+':'')+p.value+'%'}, fontSize:9}}
+    ]
+  }, true);
+
+  // 车型同比 (使用2026年相同月份范围对齐)
+  var modelCurr = {}, modelPrev = {};
+  ['M5','M6','M7','M8','M9'].forEach(function(m) {
+    modelCurr[m] = data.filter(function(r){
+      return getY(r.date)===currYear && compMonths.indexOf(getM(r.date))>=0 && r.model===m;
+    }).reduce(function(s,r){return s+r.count},0);
+    modelPrev[m] = data.filter(function(r){
+      return getY(r.date)===prevYear && compMonths.indexOf(getM(r.date))>=0 && r.model===m;
+    }).reduce(function(s,r){return s+r.count},0);
+  });
+  var monthRangeLabel = compMonths.length ? compMonths[0]+'-'+compMonths[compMonths.length-1]+'月' : '';
+  getChart('salesModelYoY').setOption({
+    tooltip: {trigger:'axis',
+      formatter: function(params) {
+        var cv = params[0].value, pv = params[1].value;
+        var yoy = fmtYoY(cv, pv);
+        return params[0].name + '<br/>'+currYear+'年('+monthRangeLabel+'): '+cv+'台<br/>'+prevYear+'年('+monthRangeLabel+'): '+pv+'台<br/>同比: '+yoy;
+      }},
+    grid: {left:'6%', right:'6%', top:'14%', bottom:'8%'},
+    legend: {data:[currYear+'年('+monthRangeLabel+')', prevYear+'年('+monthRangeLabel+')'], top:3, textStyle:{fontSize:11}},
+    xAxis: {type:'category', data:['M5','M6','M7','M8','M9'], axisLabel:{fontSize:12}},
+    yAxis: {type:'value', axisLabel:{fontSize:10}},
+    series: [
+      {name:currYear+'年('+monthRangeLabel+')', type:'bar', data:['M5','M6','M7','M8','M9'].map(function(m){return modelCurr[m]}),
+       itemStyle:{color:'#42a5f5', borderRadius:[4,4,0,0]},
+       label:{show:true, position:'top', fontSize:9,
+         formatter: function(p){
+           var idx = p.dataIndex, models2 = ['M5','M6','M7','M8','M9'], m2 = models2[idx];
+           var cv2 = modelCurr[m2], pv2 = modelPrev[m2];
+           return cv2 + '\n' + fmtYoY(cv2, pv2);
+         }}},
+      {name:prevYear+'年('+monthRangeLabel+')', type:'bar', data:['M5','M6','M7','M8','M9'].map(function(m){return modelPrev[m]}),
+       itemStyle:{color:'#b0bec5', borderRadius:[4,4,0,0]}, label:{show:true, position:'top', fontSize:10}}
+    ]
+  }, true);
+
+  // 大定同比 (限制到2026年有数据的月份)
+  var yoyMonths=[], yoyCurr=[], yoyPrev=[], yoyLabels=[];
+  compMonths.forEach(function(mm) {
+    var mStr = (mm<10?'0'+mm:mm);
+    var cm = currYear+'-'+mStr, pm = prevYear+'-'+mStr;
+    var cv = data.filter(function(r){return getYM(r.date)===cm}).reduce(function(s,r){return s+r.count},0);
+    var pv = data.filter(function(r){return getYM(r.date)===pm}).reduce(function(s,r){return s+r.count},0);
+    yoyMonths.push(mm+'月'); yoyCurr.push(cv); yoyPrev.push(pv);
+    yoyLabels.push({value: cv, label: fmtYoY(cv, pv)});
+  });
+  getChart('salesYoY').setOption({
+    tooltip: {trigger:'axis',
+      formatter: function(params) {
+        var cv = params[0].value, pv = params[1].value;
+        var yoy = fmtYoY(cv, pv);
+        return params[0].name + '<br/>' + currYear+'年: '+cv+'台<br/>'+prevYear+'年: '+pv+'台<br/>同比: '+yoy;
+      }},
+    grid: {left:'6%', right:'6%', top:'14%', bottom:'8%'},
+    legend: {data:[currYear+'年', prevYear+'年'], top:3, textStyle:{fontSize:11}},
+    xAxis: {type:'category', data:yoyMonths, axisLabel:{fontSize:11}},
+    yAxis: {type:'value', axisLabel:{fontSize:10}},
+    series: [
+      {name:currYear+'年', type:'line', data:yoyCurr,
+       itemStyle:{color:'#e53935'}, lineStyle:{width:2}, symbol:'circle', symbolSize:5,
+       label:{show:true, fontSize:9, formatter:function(p){return p.value!==0?p.value:''}}},
+      {name:prevYear+'年', type:'line', data:yoyPrev,
+       itemStyle:{color:'#90a4ae'}, lineStyle:{width:2}, symbol:'circle', symbolSize:5,
+       label:{show:true, fontSize:9, formatter:function(p){return p.value!==0?p.value:''}}},
+      {type:'scatter', data:yoyLabels, symbolSize:8,
+       itemStyle:{color:'transparent'},
+       label:{show:true, position:'top', fontSize:9, color:'#e53935', distance:10,
+         formatter:function(p){return p.data.label;}}}
+    ]
+  }, true);
+}
+
+// ============ 交付仪表盘 ============
+function renderDelivery() {
+  var data = filterDelivery();
+  var refDay = getRefDay();
+  var refMonth = getRefMonth();
+  var currYear = parseInt(refMonth.substring(0,4));
+  var prevYear = currYear - 1;
+  var models = ['M5','M6','M7','M8','M9'];
+
+  // 获取2026年有数据的月份范围（同比对齐）
+  var compMonths = getMonthsInYear(data, currYear);
+
+  // 当日交付
+  var dailyData = data.filter(function(r) { return r.date === refDay; });
+  var dailyTotal = dailyData.reduce(function(s,r){return s+r.total},0);
+  var dailyStores = new Set(dailyData.map(function(r){return r.store})).size;
+
+  // 当月交付合计
+  var monthData = data.filter(function(r){return getYM(r.date)===refMonth});
+  var monthTotal = monthData.reduce(function(s,r){return s+r.total},0);
+
+  // 环比
+  var prevMonthTotal = data.filter(function(r){return getYM(r.date)===getPrevMonth(refMonth)}).reduce(function(s,r){return s+r.total},0);
+  var momPct = calcMoM(monthTotal, prevMonthTotal);
+
+  // 同比
+  var sameMonthLY = getSameMonthLY(refMonth);
+  var lyMonthTotal = data.filter(function(r){return getYM(r.date)===sameMonthLY}).reduce(function(s,r){return s+r.total},0);
+  var yoyPct = calcMoM(monthTotal, lyMonthTotal);
+
+  document.getElementById('deliveryKpi').innerHTML =
+    kpiCard('当日交付 ('+refDay+')', dailyTotal, '台', '', null, 'blue') +
+    kpiCard('当月交付 ('+refMonth+')', monthTotal, '台', momPct!==null?fmtPct(momPct)+' 环比':'', momPct, 'green') +
+    kpiCard('同比 ('+sameMonthLY+')', lyMonthTotal, '台', yoyPct!==null?fmtPct(yoyPct)+' 同比':'', yoyPct, 'orange') +
+    kpiCard('当日交付门店', dailyStores, '家', '', null, 'purple');
+
+  // 当日交付车型台数和占比
+  var mdDaily = {};
+  models.forEach(function(m) {
+    mdDaily[m] = dailyData.reduce(function(s,r){return s+r[m.toLowerCase()]},0);
+  });
+  var mdPieArr = models.filter(function(m){return mdDaily[m]>0}).map(function(m){return {name:m, value:mdDaily[m]}});
+  getChart('deliveryModelDaily').setOption({
+    tooltip: {trigger:'item', formatter:'{b}: {c}台 ({d}%)'},
+    legend: {bottom:5, left:'center', fontSize:11},
+    series: [{type:'pie', radius:['40%','70%'], center:['50%','45%'],
+      data: mdPieArr, itemStyle: {borderRadius:6, borderColor:'#fff', borderWidth:2},
+      label: {formatter:'{b}\n{c}台 ({d}%)', fontSize:11},
+      color: ['#42a5f5','#66bb6a','#ff9800','#ab47bc','#ef5350']}]
+  }, true);
+
+  // 当日门店交付台数
+  var storeDaily = {};
+  dailyData.forEach(function(r) { storeDaily[r.store] = (storeDaily[r.store] || 0) + r.total; });
+  renderStoreBarChart('deliveryStoreDaily', storeDaily, '#66bb6a');
+
+  // 当月交付门店排名 (新增)
+  var storeMonthD = {};
+  monthData.forEach(function(r) { storeMonthD[r.store] = (storeMonthD[r.store] || 0) + r.total; });
+  getChart('deliveryStoreMonth').setOption({
+    tooltip: {trigger:'axis', axisPointer:{type:'shadow'}},
+    grid: {left:'22%', right:'10%', top:'5%', bottom:'5%'},
+    title: {text: refMonth, right:10, top:5, textStyle:{fontSize:12, color:'#999'}},
+    xAxis: {type:'value', axisLabel:{fontSize:11}},
+    yAxis: {type:'category',
+      data: Object.keys(storeMonthD).map(function(k){return {name:k, value:storeMonthD[k]}}).sort(function(a,b){return a.value-b.value}).map(function(d){return d.name}),
+      axisLabel:{fontSize:10}},
+    series: [{type:'bar',
+      data: Object.keys(storeMonthD).map(function(k){return {name:k, value:storeMonthD[k]}}).sort(function(a,b){return a.value-b.value}).map(function(d){return d.value}),
+      itemStyle: {color: new echarts.graphic.LinearGradient(0,0,1,0,[{offset:0,color:'#66bb6a'},{offset:1,color:'#26a69a'}]), borderRadius:[0,4,4,0]},
+      label: {show:true, position:'right', fontSize:11}}]
+  }, true);
+
+  // 月度交付：仅2026年 + 环比
+  var monthlyD26 = {};
+  data.forEach(function(r) {
+    var ym = getYM(r.date), y = getY(r.date);
+    if (y === currYear) monthlyD26[ym] = (monthlyD26[ym] || 0) + r.total;
+  });
+  var allMonthsD = '01,02,03,04,05,06,07,08,09,10,11,12'.split(',');
+  var xLabelsD = allMonthsD.map(function(m){ return m+'月'; });
+  var vals26D = allMonthsD.map(function(m){ return monthlyD26[currYear+'-'+m] || 0; });
+  var momPctsD = vals26D.map(function(v,i){return i>0&&vals26D[i-1]>0 ? calcMoM(v, vals26D[i-1]) : null});
+  getChart('deliveryMonthlyMoM').setOption({
+    tooltip: {trigger:'axis',
+      formatter: function(p){
+        var s = p[0].name + '<br/>' + currYear + '年: ' + p[0].value + '台';
+        if (p[1] && p[1].value!='-' && p[1].value!=null) {
+          var v = parseFloat(p[1].value);
+          s += '<br/>' + currYear + '环比: ' + (v>=0?'▲':'▼') + ' ' + fmtPct(v);
+        }
+        return s;
+      }},
+    grid: {left:'6%', right:'6%', top:'14%', bottom:'12%'},
+    legend: {data:[currYear+'年',currYear+'年环比'], top:3, textStyle:{fontSize:11}},
+    xAxis: {type:'category', data:xLabelsD, axisLabel:{fontSize:10, rotate:30}},
+    yAxis: [
+      {type:'value', name:'台数', axisLabel:{fontSize:10}},
+      {type:'value', name:'环比%', axisLabel:{formatter:'{value}%', fontSize:10}}
+    ],
+    series: [
+      {name:currYear+'年', type:'bar', data:vals26D,
+       itemStyle:{color: new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'#42a5f5'},{offset:1,color:'#1a237e'}]), borderRadius:[4,4,0,0]},
+       label:{show:true, position:'top', fontSize:10, color:'#333'}},
+      {name:currYear+'年环比', type:'line', yAxisIndex:1,
+       data:momPctsD.map(function(v){return v==null?'-':v.toFixed(1)}),
+       itemStyle:{color:'#e53935'}, lineStyle:{width:2}, symbol:'circle', symbolSize:6,
+       label:{show:true, formatter:function(p){return p.value=='-'?'':(parseFloat(p.value)>=0?'+':'')+p.value+'%'}, fontSize:9, color:'#e53935'}}
+    ]
+  }, true);
+
+  // 年度门店交付台数 (仅2026年，降序)
+  var storeAnnualD26 = {};
+  data.filter(function(r){return getY(r.date)===currYear}).forEach(function(r) {
+    storeAnnualD26[r.store] = (storeAnnualD26[r.store] || 0) + r.total;
+  });
+  var allStoresD = Object.keys(storeAnnualD26).sort(function(a,b){return (storeAnnualD26[a]||0)-(storeAnnualD26[b]||0)});
+  var stArrD26 = allStoresD.map(function(s){return storeAnnualD26[s]||0});
+  getChart('deliveryStoreAnnual').setOption({
+    tooltip: {trigger:'axis', axisPointer:{type:'shadow'},
+      formatter: function(params){ return params[0].name+'<br/>'+currYear+'年: '+params[0].value+'台'; }},
+    grid: {left:'22%', right:'10%', top:'5%', bottom:'5%'},
+    xAxis: {type:'value', axisLabel:{fontSize:11}},
+    yAxis: {type:'category', data:allStoresD, axisLabel:{fontSize:10}},
+    series: [
+      {name:currYear+'年', type:'bar', data:stArrD26,
+       itemStyle:{color: new echarts.graphic.LinearGradient(0,0,1,0,[{offset:0,color:'#26c6da'},{offset:1,color:'#42a5f5'}]), borderRadius:[0,4,4,0]},
+       label:{show:true, position:'right', fontSize:11}}
+    ]
+  }, true);
+
+  // 交付同比 (月度对比, 限制到2026年有数据的月份)
+  var yoyMonths=[], yoyCurr=[], yoyPrev=[];
+  compMonths.forEach(function(mm) {
+    var mStr=(mm<10?'0'+mm:mm), cm=currYear+'-'+mStr, pm=prevYear+'-'+mStr;
+    var cv=data.filter(function(r){return getYM(r.date)===cm}).reduce(function(s,r){return s+r.total},0);
+    var pv=data.filter(function(r){return getYM(r.date)===pm}).reduce(function(s,r){return s+r.total},0);
+    yoyMonths.push(mm+'月'); yoyCurr.push({value:cv, yoy:fmtYoY(cv,pv)}); yoyPrev.push(pv);
+  });
+  getChart('deliveryYoY').setOption({
+    tooltip: {trigger:'axis',
+      formatter: function(params){
+        var cv=params[0].value.value||params[0].value, pv=params[1].value;
+        var yoy = fmtYoY(cv, pv);
+        return params[0].name+'<br/>'+currYear+'年: '+cv+'台<br/>'+prevYear+'年: '+pv+'台<br/>同比: '+yoy;
+      }},
+    grid: {left:'8%', right:'5%', top:'16%', bottom:'10%'},
+    legend: {data:[currYear+'年',prevYear+'年'], top:3, textStyle:{fontSize:10}},
+    xAxis: {type:'category', data:yoyMonths, axisLabel:{fontSize:10}},
+    yAxis: {type:'value', axisLabel:{fontSize:10}},
+    series: [
+      {name:currYear+'年', type:'bar', data:yoyCurr, itemStyle:{color:'#42a5f5', borderRadius:[3,3,0,0]},
+       label:{show:true, fontSize:8, formatter:function(p){return p.data.value+'\n'+p.data.yoy}}},
+      {name:prevYear+'年', type:'bar', data:yoyPrev, itemStyle:{color:'#b0bec5', borderRadius:[3,3,0,0]}, label:{show:true, fontSize:8}}
+    ]
+  }, true);
+
+  // 车型同比 (使用2026年相同月份范围)
+  var mdCurr={}, mdPrev={};
+  models.forEach(function(m){
+    var key=m.toLowerCase();
+    mdCurr[m]=data.filter(function(r){
+      return getY(r.date)===currYear && compMonths.indexOf(getM(r.date))>=0;
+    }).reduce(function(s,r){return s+r[key]},0);
+    mdPrev[m]=data.filter(function(r){
+      return getY(r.date)===prevYear && compMonths.indexOf(getM(r.date))>=0;
+    }).reduce(function(s,r){return s+r[key]},0);
+  });
+  var mdRangeLabel = compMonths.length ? compMonths[0]+'-'+compMonths[compMonths.length-1]+'月' : '';
+  getChart('deliveryModelYoY').setOption({
+    tooltip: {trigger:'axis',
+      formatter: function(params){
+        var cv=params[0].value, pv=params[1].value;
+        var yoy = fmtYoY(cv, pv);
+        return params[0].name+'<br/>'+currYear+'年('+mdRangeLabel+'): '+cv+'台<br/>'+prevYear+'年('+mdRangeLabel+'): '+pv+'台<br/>同比: '+yoy;
+      }},
+    grid: {left:'8%', right:'5%', top:'16%', bottom:'8%'},
+    legend: {data:[currYear+'年('+mdRangeLabel+')',prevYear+'年('+mdRangeLabel+')'], top:3, textStyle:{fontSize:10}},
+    xAxis: {type:'category', data:models, axisLabel:{fontSize:11}},
+    yAxis: {type:'value', axisLabel:{fontSize:10}},
+    series: [
+      {name:currYear+'年('+mdRangeLabel+')', type:'bar', data:models.map(function(m){return mdCurr[m]}),
+       itemStyle:{color:'#42a5f5', borderRadius:[3,3,0,0]},
+       label:{show:true, fontSize:9, position:'top',
+         formatter:function(p){
+           var idx=p.dataIndex, m2=models[idx];
+           return mdCurr[m2]+'\n'+fmtYoY(mdCurr[m2],mdPrev[m2]);
+         }}},
+      {name:prevYear+'年('+mdRangeLabel+')', type:'bar', data:models.map(function(m){return mdPrev[m]}),
+       itemStyle:{color:'#b0bec5', borderRadius:[3,3,0,0]}, label:{show:true, fontSize:9, position:'top'}}
+    ]
+  }, true);
+}
+
+// ============ 售后仪表盘 ============
+function renderAftersales() {
+  var data = filterAftersales();
+  var refDay = getRefDay();
+  var refMonth = getRefMonth();
+  var currYear = parseInt(refMonth.substring(0,4));
+  var prevYear = currYear - 1;
+
+  // 当日/当月进厂台次和产值（取头天数据）
+  var dailyData = data.filter(function(r) { return r.date === refDay; });
+  var dailyCount = dailyData.reduce(function(s,r){return s+r.count},0);
+  var dailyValue = dailyData.reduce(function(s,r){return s+r.value},0);
+
+  var monthData = data.filter(function(r){return getYM(r.date)===refMonth});
+  var monthCount = monthData.reduce(function(s,r){return s+r.count},0);
+  var monthValue = monthData.reduce(function(s,r){return s+r.value},0);
+
+  // 环比
+  var prevMonthData = data.filter(function(r){return getYM(r.date)===getPrevMonth(refMonth)});
+  var prevCount = prevMonthData.reduce(function(s,r){return s+r.count},0);
+  var prevValue = prevMonthData.reduce(function(s,r){return s+r.value},0);
+  var countMoM = calcMoM(monthCount, prevCount);
+  var valueMoM = calcMoM(monthValue, prevValue);
+
+  document.getElementById('aftersalesKpi').innerHTML =
+    kpiCard('当日进厂台次 ('+refDay+')', fmtNum(dailyCount), '台', '', null, 'green') +
+    kpiCard('当月进厂台次 ('+refMonth+')', fmtNum(monthCount), '台', countMoM!==null?fmtPct(countMoM)+' 环比':'', countMoM, 'blue') +
+    kpiCard('当日产值 ('+refDay+')', dailyValue.toFixed(1), '万', '', null, 'purple') +
+    kpiCard('当月产值 ('+refMonth+')', monthValue.toFixed(1), '万', valueMoM!==null?fmtPct(valueMoM)+' 环比':'', valueMoM, 'orange');
+
+  // 月度进厂台次和产值：仅2026年 + 环比
+  var monthlyA26={}, monthlyV26={};
+  data.forEach(function(r){
+    var ym=getYM(r.date), y=getY(r.date);
+    if(y===currYear) {
+      monthlyA26[ym]=(monthlyA26[ym]||0)+r.count;
+      monthlyV26[ym]=(monthlyV26[ym]||0)+r.value;
+    }
+  });
+  var allMonths = '01,02,03,04,05,06,07,08,09,10,11,12'.split(',');
+  var xLabelsA = allMonths.map(function(m){return m+'月'});
+  var valsA26 = allMonths.map(function(m){return monthlyA26[currYear+'-'+m]||0});
+  var valsV26 = allMonths.map(function(m){return Math.round((monthlyV26[currYear+'-'+m]||0)*10)/10});
+  var cntMoMA = valsA26.map(function(v,i){return i>0&&valsA26[i-1]>0?calcMoM(v,valsA26[i-1]):null});
+  var valMoM = valsV26.map(function(v,i){return i>0&&valsV26[i-1]>0?calcMoM(v,valsV26[i-1]):null});
+
+  getChart('aftersalesCountMoM').setOption({
+    tooltip: {trigger:'axis',
+      formatter: function(p){
+        var s=p[0].name+'<br/>'+currYear+'年: '+p[0].value+'台';
+        if(p[1]&&p[1].value!='-'&&p[1].value!=null) s+='<br/>'+currYear+'环比: '+fmtPct(parseFloat(p[1].value));
+        return s;
+      }},
+    grid: {left:'6%', right:'6%', top:'14%', bottom:'12%'},
+    legend: {data:[currYear+'年台次',currYear+'年环比'], top:3, textStyle:{fontSize:11}},
+    xAxis: {type:'category', data:xLabelsA, axisLabel:{fontSize:10, rotate:30}},
+    yAxis: [{type:'value', name:'台次', axisLabel:{fontSize:10}}, {type:'value', name:'环比%', axisLabel:{formatter:'{value}%', fontSize:10}}],
+    series: [
+      {name:currYear+'年台次', type:'bar', data:valsA26,
+       itemStyle:{color:'#66bb6a', borderRadius:[4,4,0,0]}, label:{show:true, position:'top', fontSize:10, color:'#333'}},
+      {name:currYear+'年环比', type:'line', yAxisIndex:1,
+       data:cntMoMA.map(function(v){return v==null?'-':v.toFixed(1)}),
+       itemStyle:{color:'#ff9800'}, lineStyle:{width:2}, symbol:'circle', symbolSize:6,
+       label:{show:true, formatter:function(p){return p.value=='-'?'':(parseFloat(p.value)>=0?'+':'')+p.value+'%'}, fontSize:9}}
+    ]
+  }, true);
+
+  // 月度产值：仅2026年 + 环比
+  getChart('aftersalesValueMoM').setOption({
+    tooltip: {trigger:'axis',
+      formatter: function(p){
+        var s=p[0].name+'<br/>'+currYear+'年: '+p[0].value+'万';
+        if(p[1]&&p[1].value!='-'&&p[1].value!=null) s+='<br/>'+currYear+'环比: '+fmtPct(parseFloat(p[1].value));
+        return s;
+      }},
+    grid: {left:'6%', right:'6%', top:'14%', bottom:'12%'},
+    legend: {data:[currYear+'年产值',currYear+'年环比'], top:3, textStyle:{fontSize:11}},
+    xAxis: {type:'category', data:xLabelsA, axisLabel:{fontSize:10, rotate:30}},
+    yAxis: [{type:'value', name:'万元', axisLabel:{fontSize:10}}, {type:'value', name:'环比%', axisLabel:{formatter:'{value}%', fontSize:10}}],
+    series: [
+      {name:currYear+'年产值', type:'bar', data:valsV26,
+       itemStyle:{color:'#ab47bc', borderRadius:[4,4,0,0]}, label:{show:true, position:'top', fontSize:10, color:'#333',
+         formatter:function(p){return p.value.toFixed(1)+'万'}}},
+      {name:currYear+'年环比', type:'line', yAxisIndex:1,
+       data:valMoM.map(function(v){return v==null?'-':v.toFixed(1)}),
+       itemStyle:{color:'#e53935'}, lineStyle:{width:2}, symbol:'circle', symbolSize:6,
+       label:{show:true, formatter:function(p){return p.value=='-'?'':(parseFloat(p.value)>=0?'+':'')+p.value+'%'}, fontSize:9}}
+    ]
+  }, true);
+
+  // 当月门店台次排名
+  var storeMonthC = {};
+  monthData.forEach(function(r){ storeMonthC[r.store] = (storeMonthC[r.store] || 0) + r.count; });
+  var smArr = Object.keys(storeMonthC).map(function(k){return {name:k, value:storeMonthC[k]}}).sort(function(a,b){return a.value-b.value});
+  getChart('aftersalesStoreMonth').setOption({
+    tooltip: {trigger:'axis', axisPointer:{type:'shadow'},
+      formatter: function(p){ return p[0].name+': '+p[0].value+'台'; }},
+    grid: {left:'22%', right:'10%', top:'5%', bottom:'5%'},
+    title: {text: refMonth, right:10, top:5, textStyle:{fontSize:12, color:'#999'}},
+    xAxis: {type:'value', axisLabel:{formatter:'{value}台', fontSize:11}},
+    yAxis: {type:'category', data:smArr.map(function(d){return d.name}), axisLabel:{fontSize:10}},
+    series: [{type:'bar', data:smArr.map(function(d){return d.value}),
+      itemStyle: {color: new echarts.graphic.LinearGradient(0,0,1,0,[{offset:0,color:'#ab47bc'},{offset:1,color:'#7e57c2'}]), borderRadius:[0,4,4,0]},
+      label: {show:true, position:'right', fontSize:11}}]
+  }, true);
+
+  // 各门店累计台次排名 (仅2026年，降序)
+  var storeCount26={};
+  data.filter(function(r){return getY(r.date)===currYear}).forEach(function(r){storeCount26[r.store]=(storeCount26[r.store]||0)+r.count;});
+  var allStoresA = Object.keys(storeCount26).sort(function(a,b){return (storeCount26[a]||0)-(storeCount26[b]||0)});
+  var scArr26=allStoresA.map(function(s){return storeCount26[s]||0});
+  getChart('aftersalesStoreRank').setOption({
+    tooltip: {trigger:'axis', axisPointer:{type:'shadow'},
+      formatter:function(p){return p[0].name+'<br/>'+currYear+'年: '+p[0].value+'台'}},
+    grid: {left:'22%', right:'10%', top:'5%', bottom:'5%'},
+    xAxis: {type:'value', axisLabel:{formatter:'{value}台', fontSize:11}},
+    yAxis: {type:'category', data:allStoresA, axisLabel:{fontSize:10}},
+    series: [
+      {name:currYear+'年', type:'bar', data:scArr26,
+       itemStyle:{color: new echarts.graphic.LinearGradient(0,0,1,0,[{offset:0,color:'#42a5f5'},{offset:1,color:'#26c6da'}]), borderRadius:[0,4,4,0]},
+       label:{show:true, position:'right', fontSize:11}}
+    ]
+  }, true);
+
+  // 各门店累计产值排名 (2026年，降序)
+  var storeVal26={};
+  data.filter(function(r){return getY(r.date)===currYear}).forEach(function(r){storeVal26[r.store]=(storeVal26[r.store]||0)+r.value;});
+  var allStoresV = Object.keys(storeVal26).sort(function(a,b){return (storeVal26[a]||0)-(storeVal26[b]||0)});
+  var svArr26=allStoresV.map(function(s){return Math.round((storeVal26[s]||0)*10)/10});
+  getChart('aftersalesValueRank').setOption({
+    tooltip: {trigger:'axis', axisPointer:{type:'shadow'},
+      formatter:function(p){return p[0].name+'<br/>'+currYear+'年: '+p[0].value+'万'}},
+    grid: {left:'22%', right:'10%', top:'5%', bottom:'5%'},
+    xAxis: {type:'value', axisLabel:{formatter:'{value}万', fontSize:11}},
+    yAxis: {type:'category', data:allStoresV, axisLabel:{fontSize:10}},
+    series: [
+      {name:currYear+'年', type:'bar', data:svArr26,
+       itemStyle:{color: new echarts.graphic.LinearGradient(0,0,1,0,[{offset:0,color:'#ff9800'},{offset:1,color:'#ab47bc'}]), borderRadius:[0,4,4,0]},
+       label:{show:true, position:'right', fontSize:10, formatter:function(p){return p.value.toFixed(1)+'万'}}}
+    ]
+  }, true);
+
+  // 进厂属性分布 (饼图)
+  var modelCount = {};
+  data.forEach(function(r){
+    var m = r.model || '其他';
+    modelCount[m] = (modelCount[m] || 0) + r.count;
+  });
+  var mcArr = Object.keys(modelCount).map(function(k){return {name:k, value:modelCount[k]}});
+  getChart('aftersalesModelPie').setOption({
+    tooltip: {trigger:'item', formatter:'{b}: {c}台 ({d}%)'},
+    legend: {bottom:5, left:'center', fontSize:11},
+    series: [{type:'pie', radius:['40%','70%'], center:['50%','45%'],
+      data: mcArr, itemStyle: {borderRadius:6, borderColor:'#fff', borderWidth:2},
+      label: {formatter:'{b}\n{d}%', fontSize:11},
+      emphasis: {label: {fontSize:14, fontWeight:'bold'}},
+      color: ['#42a5f5','#66bb6a','#ef5350','#ff9800','#ab47bc']}]
+  }, true);
+}
+
+// ============ 基盘数 ============
+function renderJipan() {
+  if (!window.rawData || !window.rawData.jipan) {
+    console.error('jipan data not loaded');
+    return;
+  }
+  var jipan = window.rawData.jipan || [];
+  if (jipan.length === 0) {
+    document.getElementById('jipanKpi').innerHTML = '<div style="padding:20px;color:#999;">暂无基盘数数据</div>';
+    return;
+  }
+
+  // 总基盘数
+  var totalJipan = jipan.reduce(function(s, item){ return s + item.count; }, 0);
+
+  // KPI 卡片
+  document.getElementById('jipanKpi').innerHTML =
+    kpiCard('总基盘数', fmtNum(totalJipan), '个', null, null, 'blue') +
+    kpiCard('门店数', jipan.length, '家', null, null, 'green');
+
+  // 各门店基盘数排名（横向条形图，降序）
+  // 按 count 降序排序（创建副本，不修改原数据）
+  var sortedJipan = jipan.slice().sort(function(a, b){ return b.count - a.count; });
+  var storeNames = sortedJipan.map(function(item){ return item.store; });
+  var storeCounts = sortedJipan.map(function(item){ return item.count; });
+
+  getChart('jipanStoreRank').setOption({
+    tooltip: {trigger:'axis', axisPointer:{type:'shadow'},
+      formatter: function(p){ return p[0].name + '<br/>基盘数: ' + fmtNum(p[0].value) + '个'; }},
+    grid: {left:'22%', right:'10%', top:'5%', bottom:'5%'},
+    xAxis: {type:'value', axisLabel:{fontSize:11}},
+    yAxis: {type:'category', data:storeNames, axisLabel:{fontSize:10}},
+    series: [{
+      type:'bar', data:storeCounts,
+      itemStyle: {
+        color: new echarts.graphic.LinearGradient(0,0,1,0,[
+          {offset:0, color:'#42a5f5'},
+          {offset:1, color:'#1a237e'}
+        ]),
+        borderRadius:[0,4,4,0]
+      },
+      label: {
+        show:true, position:'right', fontSize:11,
+        formatter: function(p){ return fmtNum(p.value); }
+      }
+    }]
+  }, true);
+}
+
+  // ============ 初始化 ============
+function initFilters() {
+  var startSel = document.getElementById('filterMonthStart');
+  var endSel = document.getElementById('filterMonthEnd');
+  availableMonths.forEach(function(m) {
+    var o1 = document.createElement('option');
+    o1.value = m; o1.text = m; startSel.appendChild(o1);
+    var o2 = document.createElement('option');
+    o2.value = m; o2.text = m; endSel.appendChild(o2);
+  });
+  startSel.onchange = function() {
+    filterMonthStart = this.value;
+    if (filterMonthStart && filterMonthEnd && filterMonthStart > filterMonthEnd) {
+      endSel.value = '';
+      filterMonthEnd = '';
+    }
+    refreshAll();
+  };
+  endSel.onchange = function() {
+    filterMonthEnd = this.value;
+    if (filterMonthStart && filterMonthEnd && filterMonthStart > filterMonthEnd) {
+      startSel.value = '';
+      filterMonthStart = '';
+    }
+    refreshAll();
+  };
+  initMultiSelect('msStore');
+  initMultiSelect('msModel');
+}
+
+function refreshAll() {
+  renderSales();
+  renderDelivery();
+  renderAftersales();
+  renderJipan();
+}
+
+initFilters();
+refreshAll();
+
+window.addEventListener('resize', function() {
+  Object.keys(charts).forEach(function(id){charts[id].resize()});
+});
+</script>
+</body>
+</html>
