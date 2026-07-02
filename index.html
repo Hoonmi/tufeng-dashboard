@@ -972,7 +972,7 @@ function renderJipan() {
       formatter: function(p){ return p[0].name + '<br/>基盘数: ' + fmtNum(p[0].value) + '个'; }},
     grid: {left:'22%', right:'10%', top:'5%', bottom:'5%'},
     xAxis: {type:'value', axisLabel:{fontSize:11}},
-    yAxis: {type:'category', data:storeNames, inverse:true, axisLabel:{fontSize:10}},
+    yAxis: {type:'category', data:storeNames, axisLabel:{fontSize:10}},
     series: [{
       type:'bar', data:storeCounts,
       itemStyle: {
