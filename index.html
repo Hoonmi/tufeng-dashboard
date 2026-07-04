@@ -184,12 +184,12 @@ body{font-family:'Microsoft YaHei','Segoe UI',sans-serif;background:#f0f2f5;colo
 <div class="chart-box"><div class="chart-title">当月门店产值排名</div><div id="aftersalesStoreMonthValue" class="chart-container"></div></div>
 </div>
 <div class="chart-grid two" style="margin-bottom:16px">
-<div class="chart-box"><div class="chart-title">各门店累计台次排名</div><div id="aftersalesStoreRank" class="chart-container"></div></div>
-<div class="chart-box"><div class="chart-title">各门店累计产值排名</div><div id="aftersalesValueRank" class="chart-container"></div></div>
-</div>
-<div class="chart-grid two" style="margin-bottom:16px">
 <div class="chart-box"><div class="chart-title">当月单产排名</div><div id="aftersalesDanchanMonth" class="chart-container"></div></div>
 <div class="chart-box"><div class="chart-title">进厂属性分布</div><div id="aftersalesModelPie" class="chart-container pie"></div></div>
+</div>
+<div class="chart-grid two" style="margin-bottom:16px">
+<div class="chart-box"><div class="chart-title">各门店累计台次排名</div><div id="aftersalesStoreRank" class="chart-container"></div></div>
+<div class="chart-box"><div class="chart-title">各门店累计产值排名</div><div id="aftersalesValueRank" class="chart-container"></div></div>
 </div>
 </div>
 
@@ -940,7 +940,7 @@ function renderAftersales() {
       label: {show:true, position:'right', fontSize:11, formatter:function(p){return p.value.toFixed(1)+'万'}}}]
   }, true);
 
-  // 当月单产排名 (单产 = 产值 / 台次)
+  // 当月单产排名 (单产 = 产值 / 台次，产值万元→元)
   var storeMonthU = {};
   monthData.forEach(function(r){
     if(!storeMonthU[r.store]) storeMonthU[r.store] = {v:0, c:0};
@@ -949,18 +949,18 @@ function renderAftersales() {
   });
   var smUArr = Object.keys(storeMonthU).map(function(k){
     var d = storeMonthU[k];
-    return {name:k, value: d.c > 0 ? Math.round(d.v / d.c * 100) / 100 : 0};
+    return {name:k, value: d.c > 0 ? Math.round(d.v * 10000 / d.c) : 0};
   }).sort(function(a,b){return a.value - b.value});
   getChart('aftersalesDanchanMonth').setOption({
     tooltip: {trigger:'axis', axisPointer:{type:'shadow'},
-      formatter: function(p){ return p[0].name+': '+p[0].value+'万/台'; }},
-    grid: {left:'22%', right:'12%', top:'5%', bottom:'5%'},
+      formatter: function(p){ return p[0].name+': '+p[0].value+'元/台'; }},
+    grid: {left:'22%', right:'14%', top:'5%', bottom:'5%'},
     title: {text: refMonth, right:10, top:5, textStyle:{fontSize:12, color:'#999'}},
-    xAxis: {type:'value', axisLabel:{formatter:'{value}万', fontSize:11}},
+    xAxis: {type:'value', axisLabel:{formatter:'{value}元', fontSize:11}},
     yAxis: {type:'category', data:smUArr.map(function(d){return d.name}), axisLabel:{fontSize:10}},
     series: [{type:'bar', data:smUArr.map(function(d){return d.value}),
       itemStyle: {color: new echarts.graphic.LinearGradient(0,0,1,0,[{offset:0,color:'#26a69a'},{offset:1,color:'#66bb6a'}]), borderRadius:[0,4,4,0]},
-      label: {show:true, position:'right', fontSize:11, formatter:function(p){return p.value.toFixed(2)+'万/台'}}}]
+      label: {show:true, position:'right', fontSize:11, formatter:function(p){return p.value+'元/台'}}}]
   }, true);
 
   // 各门店累计台次排名 (仅2026年，降序)
@@ -999,18 +999,18 @@ function renderAftersales() {
     ]
   }, true);
 
-  // 进厂属性分布 (饼图)
-  var modelCount = {};
+  // 进厂属性分布 (饼图，按 type 字段：一般维修/保养/事故/索赔)
+  var typeCount = {};
   data.forEach(function(r){
-    var m = r.model || '其他';
-    modelCount[m] = (modelCount[m] || 0) + r.count;
+    var t = r.type || '其他';
+    typeCount[t] = (typeCount[t] || 0) + r.count;
   });
-  var mcArr = Object.keys(modelCount).map(function(k){return {name:k, value:modelCount[k]}});
+  var tcArr = Object.keys(typeCount).map(function(k){return {name:k, value:typeCount[k]}});
   getChart('aftersalesModelPie').setOption({
     tooltip: {trigger:'item', formatter:'{b}: {c}台 ({d}%)'},
     legend: {bottom:5, left:'center', fontSize:11},
     series: [{type:'pie', radius:['40%','70%'], center:['50%','45%'],
-      data: mcArr, itemStyle: {borderRadius:6, borderColor:'#fff', borderWidth:2},
+      data: tcArr, itemStyle: {borderRadius:6, borderColor:'#fff', borderWidth:2},
       label: {formatter:'{b}\n{d}%', fontSize:11},
       emphasis: {label: {fontSize:14, fontWeight:'bold'}},
       color: ['#42a5f5','#66bb6a','#ef5350','#ff9800','#ab47bc']}]
