@@ -185,7 +185,10 @@ body{font-family:'Microsoft YaHei','Segoe UI',sans-serif;background:#f0f2f5;colo
 </div>
 <div class="chart-grid two" style="margin-bottom:16px">
 <div class="chart-box"><div class="chart-title">当月门店台次排名</div><div id="aftersalesStoreMonth" class="chart-container"></div></div>
-<div class="chart-box"><div class="chart-title">进厂属性分布</div><div id="aftersalesModelPie" class="chart-container pie"></div></div>
+<div class="chart-box"><div class="chart-title">当月门店产值排名</div><div id="aftersalesStoreMonthValue" class="chart-container"></div></div>
+</div>
+<div class="chart-grid full" style="margin-bottom:16px">
+<div class="chart-box" style="max-width:600px;margin:0 auto"><div class="chart-title">进厂属性分布</div><div id="aftersalesModelPie" class="chart-container pie"></div></div>
 </div>
 </div>
 
@@ -918,6 +921,22 @@ function renderAftersales() {
     series: [{type:'bar', data:smArr.map(function(d){return d.value}),
       itemStyle: {color: new echarts.graphic.LinearGradient(0,0,1,0,[{offset:0,color:'#ab47bc'},{offset:1,color:'#7e57c2'}]), borderRadius:[0,4,4,0]},
       label: {show:true, position:'right', fontSize:11}}]
+  }, true);
+
+  // 当月门店产值排名
+  var storeMonthV = {};
+  monthData.forEach(function(r){ storeMonthV[r.store] = (storeMonthV[r.store] || 0) + r.value; });
+  var smVArr = Object.keys(storeMonthV).map(function(k){return {name:k, value:Math.round(storeMonthV[k]*10)/10}}).sort(function(a,b){return a.value-b.value});
+  getChart('aftersalesStoreMonthValue').setOption({
+    tooltip: {trigger:'axis', axisPointer:{type:'shadow'},
+      formatter: function(p){ return p[0].name+': '+p[0].value+'万'; }},
+    grid: {left:'22%', right:'10%', top:'5%', bottom:'5%'},
+    title: {text: refMonth, right:10, top:5, textStyle:{fontSize:12, color:'#999'}},
+    xAxis: {type:'value', axisLabel:{formatter:'{value}万', fontSize:11}},
+    yAxis: {type:'category', data:smVArr.map(function(d){return d.name}), axisLabel:{fontSize:10}},
+    series: [{type:'bar', data:smVArr.map(function(d){return d.value}),
+      itemStyle: {color: new echarts.graphic.LinearGradient(0,0,1,0,[{offset:0,color:'#ff9800'},{offset:1,color:'#ab47bc'}]), borderRadius:[0,4,4,0]},
+      label: {show:true, position:'right', fontSize:11, formatter:function(p){return p.value.toFixed(1)+'万'}}}]
   }, true);
 
   // 各门店累计台次排名 (仅2026年，降序)
