@@ -1011,10 +1011,11 @@ function renderAftersales() {
     ]
   }, true);
 
-  // 进厂属性分布 (饼图，按 type 字段：一般维修/保养/事故/索赔)
+  // 进厂属性分布 (饼图，按维修类型：一般维修/保养/事故/索赔)
+  // 兼容 type 和 model 字段，防止数据生成端字段名不一致导致饼图空白
   var typeCount = {};
   data.forEach(function(r){
-    var t = r.type || '其他';
+    var t = r.type || r.model || '其他';
     typeCount[t] = (typeCount[t] || 0) + r.count;
   });
   var tcArr = Object.keys(typeCount).map(function(k){return {name:k, value:typeCount[k]}});
