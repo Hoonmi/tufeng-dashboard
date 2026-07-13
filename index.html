@@ -456,11 +456,14 @@ function renderSales() {
   var lyMonthTotal = data.filter(function(r){return getYM(r.date)===sameMonthLY}).reduce(function(s,r){return s+r.count},0);
   var yoyPct = calcMoM(monthTotal, lyMonthTotal);
 
+  // 2026年累计大定
+  var yearTotalS = data.filter(function(r){return getY(r.date)===currYear}).reduce(function(s,r){return s+r.count},0);
+
   document.getElementById('salesKpi').innerHTML =
     kpiCard('当日大定 ('+refDay+')', dailyTotal, '台', '', null, 'blue') +
     kpiCard('当月大定 ('+refMonth+')', monthTotal, '台', momPct!==null?fmtPct(momPct)+' 环比':'', momPct, 'green') +
     kpiCard('同比 ('+sameMonthLY+')', lyMonthTotal, '台', yoyPct!==null?fmtPct(yoyPct)+' 同比':'', yoyPct, 'orange') +
-    kpiCard('当月门店数', dailyStores, '家', '', null, 'purple');
+    kpiCard(currYear+'年总大定', yearTotalS, '台', '', null, 'purple');
 
   // 当日门店大定明细 (按销量降序)
   var storeDaily = {};
@@ -654,11 +657,14 @@ function renderDelivery() {
   var lyMonthTotal = data.filter(function(r){return getYM(r.date)===sameMonthLY}).reduce(function(s,r){return s+r.total},0);
   var yoyPct = calcMoM(monthTotal, lyMonthTotal);
 
+  // 2026年累计交付
+  var yearTotalD = data.filter(function(r){return getY(r.date)===currYear}).reduce(function(s,r){return s+r.total},0);
+
   document.getElementById('deliveryKpi').innerHTML =
     kpiCard('当日交付 ('+refDay+')', dailyTotal, '台', '', null, 'blue') +
     kpiCard('当月交付 ('+refMonth+')', monthTotal, '台', momPct!==null?fmtPct(momPct)+' 环比':'', momPct, 'green') +
     kpiCard('同比 ('+sameMonthLY+')', lyMonthTotal, '台', yoyPct!==null?fmtPct(yoyPct)+' 同比':'', yoyPct, 'orange') +
-    kpiCard('当日交付门店', dailyStores, '家', '', null, 'purple');
+    kpiCard(currYear+'年总交付量', yearTotalD, '台', '', null, 'purple');
 
   // 当日交付车型台数和占比
   var mdDaily = {};
@@ -842,11 +848,17 @@ function renderAftersales() {
   var countMoM = calcMoM(monthCount, prevCount);
   var valueMoM = calcMoM(monthValue, prevValue);
 
+  // 2026年累计进厂台次和产值
+  var yearCountA = data.filter(function(r){return getY(r.date)===currYear}).reduce(function(s,r){return s+r.count},0);
+  var yearValueA = data.filter(function(r){return getY(r.date)===currYear}).reduce(function(s,r){return s+r.value},0);
+
   document.getElementById('aftersalesKpi').innerHTML =
     kpiCard('当日进厂台次 ('+refDay+')', fmtNum(dailyCount), '台', '', null, 'green') +
     kpiCard('当月进厂台次 ('+refMonth+')', fmtNum(monthCount), '台', countMoM!==null?fmtPct(countMoM)+' 环比':'', countMoM, 'blue') +
     kpiCard('当日产值 ('+refDay+')', dailyValue.toFixed(1), '万', '', null, 'purple') +
-    kpiCard('当月产值 ('+refMonth+')', monthValue.toFixed(1), '万', valueMoM!==null?fmtPct(valueMoM)+' 环比':'', valueMoM, 'orange');
+    kpiCard('当月产值 ('+refMonth+')', monthValue.toFixed(1), '万', valueMoM!==null?fmtPct(valueMoM)+' 环比':'', valueMoM, 'orange') +
+    kpiCard(currYear+'年总进厂台次', fmtNum(yearCountA), '台', '', null, 'blue') +
+    kpiCard(currYear+'年总产值', yearValueA.toFixed(1), '万', '', null, 'green');
 
   // 月度进厂台次和产值：仅2026年 + 环比
   var monthlyA26={}, monthlyV26={};
