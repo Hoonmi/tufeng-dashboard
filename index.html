@@ -854,8 +854,8 @@ function renderAftersales() {
 
   document.getElementById('aftersalesKpi').innerHTML =
     kpiCard('当日进厂台次 ('+refDay+')', fmtNum(dailyCount), '台', '', null, 'green') +
-    kpiCard('当月进厂台次 ('+refMonth+')', fmtNum(monthCount), '台', countMoM!==null?fmtPct(countMoM)+' 环比':'', countMoM, 'blue') +
     kpiCard('当日产值 ('+refDay+')', dailyValue.toFixed(1), '万', '', null, 'purple') +
+    kpiCard('当月进厂台次 ('+refMonth+')', fmtNum(monthCount), '台', countMoM!==null?fmtPct(countMoM)+' 环比':'', countMoM, 'blue') +
     kpiCard('当月产值 ('+refMonth+')', monthValue.toFixed(1), '万', valueMoM!==null?fmtPct(valueMoM)+' 环比':'', valueMoM, 'orange') +
     kpiCard(currYear+'年总进厂台次', fmtNum(yearCountA), '台', '', null, 'blue') +
     kpiCard(currYear+'年总产值', yearValueA.toFixed(1), '万', '', null, 'green');
