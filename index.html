@@ -1050,9 +1050,9 @@ function renderJipan() {
     kpiCard('总基盘数', fmtNum(totalJipan), '个', null, null, 'blue') +
     kpiCard('门店数', jipan.length, '家', null, null, 'green');
 
-  // 各门店基盘数排名（横向条形图，降序）
-  // 按 count 降序排序（创建副本，不修改原数据）
-  var sortedJipan = jipan.slice().sort(function(a, b){ return b.count - a.count; });
+  // 各门店基盘数排名（横向条形图，升序）
+  // 按 count 升序排序（创建副本，不修改原数据）
+  var sortedJipan = jipan.slice().sort(function(a, b){ return a.count - b.count; });
   var storeNames = sortedJipan.map(function(item){ return item.store; });
   var storeCounts = sortedJipan.map(function(item){ return item.count; });
 
