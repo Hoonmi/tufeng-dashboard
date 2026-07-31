@@ -1659,67 +1659,149 @@ function buildDataContext() {
   if (!raw.sales.length) return '';
   var ctx = [];
 
-  // Sales summary
-  var sByMonth = {};
+  // === 销售数据：按月×门店的明细（重点）===
+  var salesMatrix = {}; // [store][ym] = count
+  var allMonths = new Set();
+  var allStoresSales = new Set();
   raw.sales.forEach(function(r) {
     var ym = r.date && r.date.substring(0,7);
-    if (ym) sByMonth[ym] = (sByMonth[ym]||0) + (r.count||0);
+    if (ym) {
+      salesMatrix[r.store] = salesMatrix[r.store] || {};
+      salesMatrix[r.store][ym] = (salesMatrix[r.store][ym]||0) + (r.count||0);
+      allMonths.add(ym);
+      allStoresSales.add(r.store);
+    }
   });
-  ctx.push('## 销售大定数据（总计' + sumCount(raw.sales) + '台）');
-  Object.keys(sByMonth).sort().forEach(function(ym) {
-    ctx.push('- ' + ym + ': ' + sByMonth[ym] + '台');
+  var monthsArr = Array.from(allMonths).sort();
+  var storesArr = Array.from(allStoresSales);
+
+  // 月度大定表格（按门店×月）
+  ctx.push('## 销售大定 - 各门店月度明细（单位：台）');
+  var header = '门店 | ' + monthsArr.join(' | ') + ' | 合计';
+  ctx.push(header);
+  ctx.push('---'.repeat(header.length / 3));
+  storesArr.forEach(function(s) {
+    var row = [s];
+    var total = 0;
+    monthsArr.forEach(function(m) {
+      var v = salesMatrix[s][m] || 0;
+      row.push(v || '-');
+      total += v;
+    });
+    row.push(total);
+    ctx.push(row.join(' | '));
   });
 
-  // Top stores
-  var gbs = groupByStore(raw.sales);
-  var topStores = sortMap(gbs).slice(0, 16);
-  ctx.push('## 各门店大定累计');
-  topStores.forEach(function(r,i) {
-    ctx.push('- ' + r.k + ': ' + r.v + '台');
+  // 月度合计行
+  var totalRow = ['合计'];
+  var grandTotal = 0;
+  monthsArr.forEach(function(m) {
+    var monthTotal = 0;
+    storesArr.forEach(function(s) { monthTotal += salesMatrix[s][m] || 0; });
+    grandTotal += monthTotal;
+    totalRow.push(monthTotal);
   });
+  totalRow.push(grandTotal);
+  ctx.push(totalRow.join(' | '));
 
-  // Top models
+  // === 车型累计 ===
   var gbm = groupByModel(raw.sales);
-  var topModels = sortMap(gbm);
   ctx.push('## 各车型大定累计');
-  topModels.forEach(function(r) {
-    ctx.push('- ' + r.k + ': ' + r.v + '台');
+  for (var mk in gbm) ctx.push('- ' + mk + ': ' + gbm[mk] + '台');
+
+  // === 交付数据 ===
+  var dvMatrix = {};
+  var dvStores = new Set();
+  var dvMonths = new Set();
+  raw.delivery.forEach(function(r) {
+    var ym = r.date && r.date.substring(0,7);
+    if (ym) {
+      dvMatrix[r.store] = dvMatrix[r.store] || {};
+      dvMatrix[r.store][ym] = (dvMatrix[r.store][ym]||0) + (r.total||0);
+      dvStores.add(r.store);
+      dvMonths.add(ym);
+    }
+  });
+  ctx.push('## 交付数据（按门店×月，单位：台）');
+  var dvMonthsArr = Array.from(dvMonths).sort();
+  var dvStoresArr = Array.from(dvStores);
+  ctx.push('门店 | ' + dvMonthsArr.join(' | ') + ' | 合计');
+  dvStoresArr.forEach(function(s) {
+    var row = [s];
+    var total = 0;
+    dvMonthsArr.forEach(function(m) {
+      var v = dvMatrix[s][m] || 0;
+      row.push(v || '-');
+      total += v;
+    });
+    row.push(total);
+    ctx.push(row.join(' | '));
   });
 
-  // Delivery summary
-  var dTotal = sumDelivery(raw.delivery);
-  var dByStore = groupByStore(raw.delivery);
-  var topDStores = sortMap(dByStore).slice(0, 16);
-  ctx.push('## 交付数据（总计' + dTotal + '台）');
-  topDStores.forEach(function(r) {
-    ctx.push('- ' + r.k + ': ' + r.v + '台');
+  // === 售后数据 ===
+  var asMatrix = {}; // [store][ym] = {count, value}
+  var asStores = new Set();
+  var asMonths = new Set();
+  raw.aftersales.forEach(function(r) {
+    var ym = r.date && r.date.substring(0,7);
+    if (ym) {
+      asMatrix[r.store] = asMatrix[r.store] || {};
+      asMatrix[r.store][ym] = asMatrix[r.store][ym] || {count:0, value:0};
+      asMatrix[r.store][ym].count += (r.count||0);
+      asMatrix[r.store][ym].value += (r.value||0);
+      asStores.add(r.store);
+      asMonths.add(ym);
+    }
+  });
+  var asMonthsArr = Array.from(asMonths).sort();
+  var asStoresArr = Array.from(asStores);
+  ctx.push('## 售后进厂台次（按门店×月，单位：台）');
+  ctx.push('门店 | ' + asMonthsArr.join(' | ') + ' | 合计');
+  asStoresArr.forEach(function(s) {
+    var row = [s];
+    var total = 0;
+    asMonthsArr.forEach(function(m) {
+      var v = (asMatrix[s][m] && asMatrix[s][m].count) || 0;
+      row.push(v || '-');
+      total += v;
+    });
+    row.push(total);
+    ctx.push(row.join(' | '));
+  });
+  ctx.push('## 售后产值（按门店×月，单位：万元）');
+  ctx.push('门店 | ' + asMonthsArr.join(' | ') + ' | 合计');
+  asStoresArr.forEach(function(s) {
+    var row = [s];
+    var total = 0;
+    asMonthsArr.forEach(function(m) {
+      var v = (asMatrix[s][m] && asMatrix[s][m].value) || 0;
+      row.push((v? v.toFixed(1): '-'));
+      total += v;
+    });
+    row.push(total.toFixed(1));
+    ctx.push(row.join(' | '));
   });
 
-  // Aftersales summary
-  var asCount = sumCount(raw.aftersales);
-  var asValue = sumValue(raw.aftersales);
-  var asByStore = groupByStore(raw.aftersales);
-  var asByStoreVal = groupByStoreValue(raw.aftersales);
-  var topAS = sortMap(asByStore).slice(0, 16);
-  ctx.push('## 售后数据（总计' + asCount + '台次，' + asValue.toFixed(1) + '万元产值）');
-  topAS.forEach(function(r) {
-    ctx.push('- ' + r.k + ': ' + r.v + '台次，' + (asByStoreVal[r.k]||0).toFixed(1) + '万元');
-  });
-
-  // Aftersales types
+  // 进厂属性
   var asTypes = {};
   raw.aftersales.forEach(function(r) {
     var t = r.type || r.model || '未知';
     asTypes[t] = (asTypes[t]||0) + (r.count||0);
   });
-  ctx.push('## 售后进厂属性');
+  ctx.push('## 售后进厂属性分布');
   for (var tk in asTypes) ctx.push('- ' + tk + ': ' + asTypes[tk] + '台次');
 
-  // Jipan
+  // === 基盘数 ===
   ctx.push('## 基盘数');
   raw.jipan.forEach(function(j) {
     ctx.push('- ' + j.store + ': ' + j.count + '台');
   });
+
+  // 数据范围说明
+  ctx.push('## 数据范围说明');
+  ctx.push('- 销售大定：' + monthsArr[0] + ' 至 ' + monthsArr[monthsArr.length-1] + '（按日记录）');
+  ctx.push('- 交付/售后：' + dvMonthsArr[0] + ' 至 ' + dvMonthsArr[dvMonthsArr.length-1] + '（按月汇总）');
+  ctx.push('- 没有2024年及更早的数据，所以"同比"只能算2025年 vs 2026年同月');
 
   return ctx.join('\n');
 }
