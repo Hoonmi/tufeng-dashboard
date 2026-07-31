@@ -1253,9 +1253,23 @@ function getMonthNum(q) {
   return null;
 }
 
-function getYMFromNum(monthNum) {
-  // Default to 2026, pad month
-  return '2026-' + (monthNum < 10 ? '0' + monthNum : monthNum);
+function getYMFromNum(monthNum, year) {
+  year = year || 2026;
+  return year + '-' + (monthNum < 10 ? '0' + monthNum : monthNum);
+}
+
+function getLatestMonth(data) {
+  if (!data || !data.length) return null;
+  var months = data.map(function(r){return r.date && r.date.substring(0,7);}).filter(Boolean);
+  if (!months.length) return null;
+  months.sort();
+  return months[months.length - 1]; // '2026-07'
+}
+
+function getLatestMonthNum(data) {
+  var ym = getLatestMonth(data);
+  if (!ym) return null;
+  return parseInt(ym.substring(5,7));
 }
 
 function getDataFull() {
@@ -1339,7 +1353,74 @@ function answerQuestion(q) {
   var storesQ = matchStores(q);
   var modelsQ = matchModels(q);
   var monthNum = getMonthNum(q);
+
+  // "当月/本月/最新/当前" → 最新有数据的月份
+  if (/当月|本月|最新|当前/.test(q) && !monthNum) {
+    var whichData = /售后|进厂|产值|保养/.test(q) ? raw.aftersales :
+                    /交付|交车/.test(q) ? raw.delivery : raw.sales;
+    var latestYm = getLatestMonth(whichData);
+    if (latestYm) monthNum = parseInt(latestYm.substring(5,7));
+  }
+
   var ym = monthNum ? getYMFromNum(monthNum) : null;
+
+  // 通用：识别对比意图
+  var isYoY = /同比/.test(q);
+  var isMoM = /环比/.test(q);
+  var isCompare = /对比|比较/.test(q);
+  var isRank = /排名|前\s*\d|最多|最少|最高|最低|TOP/i.test(q);
+  var wantTop = /最多|最高|TOP/i.test(q);
+  var wantBottom = /最少|最低/i.test(q);
+
+  // 同比/环比 / 对比 类问题
+  if (isYoY || isMoM || isCompare) {
+    // 需要月份
+    if (!monthNum) monthNum = getLatestMonthNum(raw.sales);
+    if (!monthNum) return '没找到可对比的月份。';
+    ym = getYMFromNum(monthNum);
+
+    var curData = filterByMonth(raw.sales, ym);
+    var prevYm, prevLabel;
+    if (isYoY) {
+      prevYm = getYMFromNum(monthNum, 2025);
+      prevLabel = '去年' + monthNum + '月';
+    } else if (isMoM) {
+      var prevM = monthNum === 1 ? 12 : monthNum - 1;
+      var prevY = monthNum === 1 ? 2025 : 2026;
+      prevYm = getYMFromNum(prevM, prevY);
+      prevLabel = (monthNum === 1 ? '去年' : '上个月');
+    } else {
+      var prevM2 = monthNum === 1 ? 12 : monthNum - 1;
+      var prevY2 = monthNum === 1 ? 2025 : 2026;
+      prevYm = getYMFromNum(prevM2, prevY2);
+      prevLabel = '上个月';
+    }
+    var prevData = filterByMonth(raw.sales, prevYm);
+
+    // 按门店对比
+    if (storesQ.length || /门店/.test(q)) {
+      var scope = storesQ.length ? storesQ : stores16;
+      var lines = [];
+      scope.forEach(function(s){
+        var cur = filterByStores(curData, [s]).reduce(function(s2,r){return s2+(r.count||0);},0);
+        var prv = filterByStores(prevData, [s]).reduce(function(s2,r){return s2+(r.count||0);},0);
+        if (cur > 0 || prv > 0) {
+          var pct = prv > 0 ? ((cur - prv) / prv * 100) : (cur > 0 ? 100 : 0);
+          var cls = pct > 0 ? 'kpi-sub up' : 'kpi-sub down';
+          var arrow = pct > 0 ? '↑' : (pct < 0 ? '↓' : '→');
+          lines.push((lines.length+1)+'. <span class="highlight">'+s+'</span> — '+cur+' 台 '+arrow+' '+pct.toFixed(1)+'%');
+        }
+      });
+      return '📊 <span class="highlight">' + monthNum + '月</span> vs ' + prevLabel + ' 大定对比：<br>' + lines.join('<br>');
+    }
+
+    var curTotal = curData.reduce(function(s,r){return s+(r.count||0);},0);
+    var prevTotal = prevData.reduce(function(s,r){return s+(r.count||0);},0);
+    if (prevTotal === 0) return '对比月份' + prevYm + '没有数据。';
+    var pctAll = ((curTotal - prevTotal) / prevTotal * 100);
+    var color = pctAll >= 0 ? '#e53935' : '#43a047';
+    return '📊 <span class="highlight">' + monthNum + '月</span> vs ' + prevLabel + ' 大定：<br>本月：<em>' + curTotal + '</em> 台<br>' + prevLabel + '：<em>' + prevTotal + '</em> 台<br>变化：<span style="color:'+color+';font-weight:600"><em>' + (pctAll>=0?'+':'') + pctAll.toFixed(1) + '%</em></span>';
+  }
 
   // === 基盘数 ===
   if (/基盘/.test(q)) {
@@ -1446,7 +1527,24 @@ function answerQuestion(q) {
   // Specific month
   if (ym) {
     var smData = filterByMonth(sData, ym);
-    if (/排名/.test(q)) {
+
+    // "最多" 类的简短查询：返回 TOP1
+    if (wantTop && !/前\s*\d/.test(q)) {
+      var gbsTop = groupByStore(smData);
+      var sorted = sortMap(gbsTop);
+      if (!sorted.length) return monthNum + '月没有大定数据。';
+      var best = sorted[0];
+      return '🏆 <span class="highlight">' + monthNum + '月</span> 大定最多：<br><span class="highlight">' + best.k + '</span> — <em>' + best.v + '</em> 台';
+    }
+    if (wantBottom && !/前\s*\d/.test(q)) {
+      var gbsBot = groupByStore(smData);
+      var sortedB = sortMap(gbsBot, true).filter(function(r){return r.v > 0;});
+      if (!sortedB.length) return monthNum + '月没有大定数据。';
+      var least = sortedB[0];
+      return '🐢 <span class="highlight">' + monthNum + '月</span> 大定最少：<br><span class="highlight">' + least.k + '</span> — <em>' + least.v + '</em> 台';
+    }
+
+    if (isRank) {
       var gbs2 = groupByStore(smData);
       var ranked4 = sortMap(gbs2);
       var topN4 = /前\s*(\d+)/.test(q) ? parseInt(RegExp.$1) : 10;
@@ -1464,8 +1562,22 @@ function answerQuestion(q) {
     return '📈 ' + scope5 + ' <span class="highlight">' + monthNum + '月</span> 大定：<em>' + smCount + '</em> 台';
   }
 
+  // "最多" / "最少" 累计查询
+  if (wantTop && !ym) {
+    var gbsCum = groupByStore(sData);
+    var sortedC = sortMap(gbsCum);
+    var best2 = sortedC[0];
+    return '🏆 累计大定最多：<br><span class="highlight">' + best2.k + '</span> — <em>' + fmtBig(best2.v) + '</em> 台';
+  }
+  if (wantBottom && !ym) {
+    var gbsCum2 = groupByStore(sData);
+    var sortedC2 = sortMap(gbsCum2, true).filter(function(r){return r.v > 0;});
+    var least2 = sortedC2[0];
+    return '🐢 累计大定最少：<br><span class="highlight">' + least2.k + '</span> — <em>' + fmtBig(least2.v) + '</em> 台';
+  }
+
   // Cumulative / ranking
-  if (/排名|前\s*\d/.test(q)) {
+  if (isRank) {
     var gbsAll = groupByStore(sData);
     var rankedAll = sortMap(gbsAll);
     var topNAll = /前\s*(\d+)/.test(q) ? parseInt(RegExp.$1) : 10;
