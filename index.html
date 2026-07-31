@@ -105,6 +105,10 @@ body{font-family:'Microsoft YaHei','Segoe UI',sans-serif;background:#f0f2f5;colo
 .chat-header .sub{font-size:11px;opacity:.7;margin-left:auto}
 .chat-header .close-btn{background:none;border:none;color:#fff;font-size:20px;cursor:pointer;padding:0 4px;line-height:1;opacity:.7}
 .chat-header .close-btn:hover{opacity:1}
+.chat-header .gear-btn{background:none;border:none;color:#fff;font-size:16px;cursor:pointer;padding:2px 4px;line-height:1;opacity:.6;margin-right:4px}
+.chat-header .gear-btn:hover{opacity:1}
+.chat-header .mode-badge{font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(255,255,255,.2)}
+.chat-header .mode-badge.ai{background:#e3f2fd;color:#1a237e}
 .chat-body{flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:12px;background:#f8f9fb}
 .chat-body .msg{max-width:88%;padding:10px 14px;border-radius:14px;font-size:13px;line-height:1.55;word-break:break-word}
 .chat-body .msg.bot{background:#fff;align-self:flex-start;border-bottom-left-radius:4px;box-shadow:0 1px 4px rgba(0,0,0,.06)}
@@ -115,6 +119,21 @@ body{font-family:'Microsoft YaHei','Segoe UI',sans-serif;background:#f0f2f5;colo
 .chat-body .suggestions{display:flex;flex-wrap:wrap;gap:6px;padding:0 0 4px 0}
 .chat-body .suggestion{font-size:11px;padding:5px 10px;border-radius:14px;background:#e8eaf6;color:#283593;cursor:pointer;border:none;transition:background .2s;line-height:1.3}
 .chat-body .suggestion:hover{background:#c5cae9}
+.api-modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center}
+.api-modal-overlay.open{display:flex}
+.api-modal{background:#fff;border-radius:14px;padding:24px;width:380px;max-width:90vw;box-shadow:0 8px 40px rgba(0,0,0,.25)}
+.api-modal h3{font-size:16px;margin-bottom:6px;color:#1a237e}
+.api-modal .hint{font-size:12px;color:#888;margin-bottom:16px}
+.api-modal input{width:100%;border:1px solid #ddd;border-radius:8px;padding:10px 14px;font-size:13px;outline:none;margin-bottom:14px;font-family:monospace}
+.api-modal input:focus{border-color:#1a237e}
+.api-modal .actions{display:flex;gap:8px;justify-content:flex-end}
+.api-modal .actions button{padding:8px 18px;border-radius:8px;border:none;font-size:13px;cursor:pointer}
+.api-modal .btn-save{background:#1a237e;color:#fff}
+.api-modal .btn-cancel{background:#eee;color:#666}
+.api-modal .status{font-size:12px;margin-top:8px;text-align:center}
+.api-modal .status.ok{color:#43a047}
+.api-modal .status.err{color:#e53935}
+.chat-body .msg .ai-tag{display:inline-block;font-size:10px;padding:1px 6px;border-radius:8px;background:#e8eaf6;color:#3949ab;margin-bottom:4px}
 .chat-input-area{display:flex;gap:8px;padding:12px 16px;border-top:1px solid #e0e0e0;background:#fff;flex-shrink:0}
 .chat-input-area input{flex:1;border:1px solid #ddd;border-radius:22px;padding:9px 16px;font-size:13px;outline:none;transition:border-color .2s}
 .chat-input-area input:focus{border-color:#1a237e}
@@ -1602,6 +1621,217 @@ function answerQuestion(q) {
   }
   return '📈 大定数据汇总：<br>累计大定：<em>' + fmtBig(total) + '</em> 台<br>覆盖门店：<em>' + storeCount + '</em> 家<br>数据范围：<span class="dim">' + dateRange + '</span>';
 }
+
+// ===== DeepSeek AI 问答 =====
+var DS_API_KEY = localStorage.getItem('ds_api_key') || '';
+var DS_API_URL = 'https://api.deepseek.com/chat/completions';
+
+function openSettings() {
+  document.getElementById('apiKeyInput').value = DS_API_KEY;
+  document.getElementById('apiStatus').textContent = '';
+  document.getElementById('apiModalOverlay').classList.add('open');
+}
+
+function closeSettings() {
+  document.getElementById('apiModalOverlay').classList.remove('open');
+}
+
+function saveApiKey() {
+  var val = document.getElementById('apiKeyInput').value.trim();
+  if (val && !val.startsWith('sk-')) {
+    document.getElementById('apiStatus').className = 'status err';
+    document.getElementById('apiStatus').textContent = 'Key 格式不正确，应该以 sk- 开头';
+    return;
+  }
+  DS_API_KEY = val;
+  try { localStorage.setItem('ds_api_key', val); } catch(e) {}
+  document.getElementById('apiStatus').className = 'status ok';
+  document.getElementById('apiStatus').textContent = '已保存';
+  document.getElementById('modeBadge').className = val ? 'mode-badge ai' : 'mode-badge';
+  document.getElementById('modeBadge').textContent = val ? 'AI' : '本地';
+  setTimeout(closeSettings, 800);
+}
+
+function buildDataContext() {
+  var raw = getDataFull();
+  if (!raw.sales.length) return '';
+  var ctx = [];
+
+  // Sales summary
+  var sByMonth = {};
+  raw.sales.forEach(function(r) {
+    var ym = r.date && r.date.substring(0,7);
+    if (ym) sByMonth[ym] = (sByMonth[ym]||0) + (r.count||0);
+  });
+  ctx.push('## 销售大定数据（总计' + sumCount(raw.sales) + '台）');
+  Object.keys(sByMonth).sort().forEach(function(ym) {
+    ctx.push('- ' + ym + ': ' + sByMonth[ym] + '台');
+  });
+
+  // Top stores
+  var gbs = groupByStore(raw.sales);
+  var topStores = sortMap(gbs).slice(0, 16);
+  ctx.push('## 各门店大定累计');
+  topStores.forEach(function(r,i) {
+    ctx.push('- ' + r.k + ': ' + r.v + '台');
+  });
+
+  // Top models
+  var gbm = groupByModel(raw.sales);
+  var topModels = sortMap(gbm);
+  ctx.push('## 各车型大定累计');
+  topModels.forEach(function(r) {
+    ctx.push('- ' + r.k + ': ' + r.v + '台');
+  });
+
+  // Delivery summary
+  var dTotal = sumDelivery(raw.delivery);
+  var dByStore = groupByStore(raw.delivery);
+  var topDStores = sortMap(dByStore).slice(0, 16);
+  ctx.push('## 交付数据（总计' + dTotal + '台）');
+  topDStores.forEach(function(r) {
+    ctx.push('- ' + r.k + ': ' + r.v + '台');
+  });
+
+  // Aftersales summary
+  var asCount = sumCount(raw.aftersales);
+  var asValue = sumValue(raw.aftersales);
+  var asByStore = groupByStore(raw.aftersales);
+  var asByStoreVal = groupByStoreValue(raw.aftersales);
+  var topAS = sortMap(asByStore).slice(0, 16);
+  ctx.push('## 售后数据（总计' + asCount + '台次，' + asValue.toFixed(1) + '万元产值）');
+  topAS.forEach(function(r) {
+    ctx.push('- ' + r.k + ': ' + r.v + '台次，' + (asByStoreVal[r.k]||0).toFixed(1) + '万元');
+  });
+
+  // Aftersales types
+  var asTypes = {};
+  raw.aftersales.forEach(function(r) {
+    var t = r.type || r.model || '未知';
+    asTypes[t] = (asTypes[t]||0) + (r.count||0);
+  });
+  ctx.push('## 售后进厂属性');
+  for (var tk in asTypes) ctx.push('- ' + tk + ': ' + asTypes[tk] + '台次');
+
+  // Jipan
+  ctx.push('## 基盘数');
+  raw.jipan.forEach(function(j) {
+    ctx.push('- ' + j.store + ': ' + j.count + '台');
+  });
+
+  return ctx.join('\n');
+}
+
+function callDeepSeek(userMessage, historyMessages) {
+  return new Promise(function(resolve, reject) {
+    if (!DS_API_KEY) { reject('no_key'); return; }
+    var ctx = buildDataContext();
+    var systemPrompt = '你是途峰集团16家汽车经销商的数据分析助手。以下是所有门店的真实销售/交付/售后/基盘数据。请基于这些数据回答用户问题，用中文，简洁专业，适当用表情符号。数据单位：大定是"台"，交付是"台"，售后产值是"万元"。不要编造数据，如果数据不足以回答，诚实说明。';
+    var msgs = [{role:'system', content: systemPrompt + '\n\n真实数据：\n' + ctx}];
+    if (historyMessages) {
+      for (var i = 0; i < historyMessages.length; i++) msgs.push(historyMessages[i]);
+    }
+    msgs.push({role:'user', content: userMessage});
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', DS_API_URL, true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.setRequestHeader('Authorization', 'Bearer ' + DS_API_KEY);
+    xhr.timeout = 30000;
+    xhr.onload = function() {
+      if (xhr.status === 200) {
+        try {
+          var resp = JSON.parse(xhr.responseText);
+          if (resp.choices && resp.choices[0] && resp.choices[0].message) {
+            resolve(resp.choices[0].message);
+          } else if (resp.error) {
+            reject(resp.error.message || 'API 错误');
+          } else {
+            reject('响应格式异常');
+          }
+        } catch(e) { reject('解析失败'); }
+      } else {
+        try { var e = JSON.parse(xhr.responseText); reject(e.error ? e.error.message : 'HTTP ' + xhr.status); }
+        catch(e2) { reject('HTTP ' + xhr.status); }
+      }
+    };
+    xhr.onerror = function() { reject('网络错误'); };
+    xhr.ontimeout = function() { reject('请求超时'); };
+    xhr.send(JSON.stringify({model:'deepseek-chat', messages:msgs, temperature:0.3, max_tokens:800}));
+  });
+}
+
+// 修改 sendMessage：优先规则引擎，复杂问题调 AI
+var _origSendMessage = sendMessage;
+sendMessage = function() {
+  var input = document.getElementById('chatInput');
+  var q = input.value.trim();
+  if (!q) return;
+  input.value = '';
+  var body = document.getElementById('chatBody');
+  var s = body.querySelector('.suggestions');
+  if (s) s.remove();
+
+  body.innerHTML += '<div class="msg user">' + escapeHtml(q) + '</div>';
+
+  // 判断：纯简单数字查询用规则引擎，否则用 AI
+  var isComplex = /为什么|原因|分析|增长|下降|对比|占比|如何|怎么|是否|哪些|趋势|表现|建议|总结|评价|哪个|最好|最差|超过|高于|低于|相差|加起来|总共.*差异|不同/.test(q) || q.length > 20;
+
+  if (!isComplex) {
+    // 先试规则引擎
+    var reAnswer = answerQuestion(q);
+    // 如果引擎返回了有意义的结果（不包含"数据汇总"这种兜底），直接用
+    if (reAnswer && !/数据汇总/.test(reAnswer) && !/累计大定：/.test(reAnswer)) {
+      body.innerHTML += '<div class="msg bot">' + reAnswer + '</div>';
+      body.scrollTop = body.scrollHeight;
+      return;
+    }
+  }
+
+  if (!DS_API_KEY) {
+    // 无 Key，用规则引擎兜底
+    var fallback = answerQuestion(q);
+    if (/数据汇总/.test(fallback) || /累计大定：/.test(fallback)) {
+      fallback = answerQuestion(q) + '<br><br><span class="dim">⚙ 配置 DeepSeek API Key 可解锁更智能的问答。点击标题栏 ⚙ 按钮设置。</span>';
+    }
+    body.innerHTML += '<div class="msg bot">' + fallback + '</div>';
+    body.scrollTop = body.scrollHeight;
+    return;
+  }
+
+  // 调用 DeepSeek
+  var ti = document.createElement('div');
+  ti.className = 'msg bot';
+  ti.innerHTML = '<div class="typing-dots"><span></span><span></span><span></span></div>';
+  body.appendChild(ti);
+  body.scrollTop = body.scrollHeight;
+
+  callDeepSeek(q, null).then(function(msg) {
+    ti.remove();
+    var text = escapeHtml(msg.content);
+    body.innerHTML += '<div class="msg bot"><span class="ai-tag">AI</span><br>' + text.replace(/\n/g,'<br>') + '</div>';
+    body.scrollTop = body.scrollHeight;
+  }).catch(function(err) {
+    ti.remove();
+    if (err === 'no_key') {
+      body.innerHTML += '<div class="msg bot">请先设置 DeepSeek API Key。<br><span class="dim">点击标题栏 ⚙ 按钮设置。</span></div>';
+    } else {
+      var fallback = answerQuestion(q);
+      body.innerHTML += '<div class="msg bot">' + fallback + '<br><span class="dim">(AI 调用失败: ' + err + ')</span></div>';
+    }
+    body.scrollTop = body.scrollHeight;
+  });
+};
+
+// 初始化模式标签
+(function() {
+  if (DS_API_KEY) {
+    document.getElementById('modeBadge').className = 'mode-badge ai';
+    document.getElementById('modeBadge').textContent = 'AI';
+  } else {
+    document.getElementById('modeBadge').className = 'mode-badge';
+    document.getElementById('modeBadge').textContent = '本地';
+  }
+})();
 </script>
 <!-- 智能助手 -->
 <div class="chat-launcher" id="chatLauncher" title="智能数据助手">
@@ -1612,23 +1842,37 @@ function answerQuestion(q) {
   <div class="chat-header">
     <div class="ai-avatar">📊</div>
     <div><strong>数据助手</strong></div>
-    <span class="sub">途峰数据问答</span>
+    <span id="modeBadge" class="mode-badge ai">AI</span>
+    <button class="gear-btn" onclick="openSettings()" title="设置API Key">⚙</button>
     <button class="close-btn" onclick="toggleChat()">×</button>
   </div>
   <div class="chat-body" id="chatBody">
-    <div class="msg bot">你好！我是途峰数据助手，可以回答关于销售、交付、售后、基盘数的问题。试试问我：</div>
+    <div class="msg bot">你好！我是途峰数据助手，接入了 DeepSeek 大模型。可以回答关于销售、交付、售后、基盘数的各种问题。</div>
     <div class="suggestions">
-      <button class="suggestion" onclick="askSuggestion(this)">7月哪个门店大定最多？</button>
-      <button class="suggestion" onclick="askSuggestion(this)">M9今年累计卖了多少台？</button>
-      <button class="suggestion" onclick="askSuggestion(this)">售后产值排名前五是谁？</button>
-      <button class="suggestion" onclick="askSuggestion(this)">重庆的门店交付总数是多少？</button>
-      <button class="suggestion" onclick="askSuggestion(this)">6月大定环比增长的门店？</button>
-      <button class="suggestion" onclick="askSuggestion(this)">基盘数最多的三家门店？</button>
+      <button class="suggestion" onclick="askSuggestion(this)">7月大定和6月比变化最大的是哪个门店？</button>
+      <button class="suggestion" onclick="askSuggestion(this)">重庆的三家店售后产值加起来是多少万？</button>
+      <button class="suggestion" onclick="askSuggestion(this)">M9和M7在7月分别卖了多少台？</button>
+      <button class="suggestion" onclick="askSuggestion(this)">售后各类型的占比各是多少？</button>
+      <button class="suggestion" onclick="askSuggestion(this)">交付台数最多的前五个门店是哪些？</button>
+      <button class="suggestion" onclick="askSuggestion(this)">基盘数一万以上的门店有哪些？</button>
     </div>
   </div>
   <div class="chat-input-area">
     <input id="chatInput" placeholder="输入数据问题，按回车发送..." onkeydown="if(event.key==='Enter')sendMessage()">
     <button onclick="sendMessage()">发送</button>
+  </div>
+</div>
+<!-- DeepSeek 设置弹窗 -->
+<div class="api-modal-overlay" id="apiModalOverlay">
+  <div class="api-modal">
+    <h3>DeepSeek API 设置</h3>
+    <div class="hint">AI 问答需要 DeepSeek API Key。Key 仅保存在浏览器本地，不会上传到服务器。注册地址：platform.deepseek.com</div>
+    <input id="apiKeyInput" placeholder="sk-xxxxxxxxxxxxxxxx" type="password">
+    <div class="actions">
+      <button class="btn-cancel" onclick="closeSettings()">取消</button>
+      <button class="btn-save" onclick="saveApiKey()">保存</button>
+    </div>
+    <div class="status" id="apiStatus"></div>
   </div>
 </div>
 </body>
