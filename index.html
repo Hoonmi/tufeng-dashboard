@@ -272,15 +272,10 @@ async function unlock() {
 
 async function decryptData(encB64, password) {
   var buf = Uint8Array.from(atob(encB64), function(c){return c.charCodeAt(0)});
-  var salt = buf.slice(0, 16), iv = buf.slice(16, 28), tag = buf.slice(28, 44), ct = buf.slice(44);
-  var keyMat = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
-  var bits = await crypto.subtle.deriveBits({name:'PBKDF2', salt:salt, iterations:120000, hash:'SHA-256'}, keyMat, 256);
-  var aesKey = await crypto.subtle.importKey('raw', bits, {name:'AES-GCM'}, false, ['decrypt']);
-  // Web Crypto AES-GCM 需要 ciphertext+tag 拼接
-  var ctWithTag = new Uint8Array(ct.length + tag.length);
-  ctWithTag.set(ct);
-  ctWithTag.set(tag, ct.length);
-  var decrypted = await crypto.subtle.decrypt({name:'AES-GCM', iv:iv, tagLength:128}, aesKey, ctWithTag);
+  var iv = buf.slice(0, 16), ct = buf.slice(16);
+  var keyData = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(password)));
+  var aesKey = await crypto.subtle.importKey('raw', keyData, {name:'AES-CBC'}, false, ['decrypt']);
+  var decrypted = await crypto.subtle.decrypt({name:'AES-CBC', iv: iv}, aesKey, ct);
   return new TextDecoder().decode(decrypted);
 }
 
