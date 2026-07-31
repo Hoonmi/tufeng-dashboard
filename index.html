@@ -1196,8 +1196,7 @@ function refreshAll() {
   renderJipan();
 }
 
-initFilters();
-refreshAll();
+// initFilters() and refreshAll() are now called after password unlock, see unlock() function
 
 window.addEventListener('resize', function() {
   Object.keys(charts).forEach(function(id){charts[id].resize()});
