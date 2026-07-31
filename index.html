@@ -1189,7 +1189,7 @@ function aiSend() {
   xhr.onerror = function() { dots.remove(); chat.innerHTML += '<div class="m bot">网络错误，请检查网络连接。</div>'; chat.scrollTop = chat.scrollHeight; };
   xhr.ontimeout = function() { dots.remove(); chat.innerHTML += '<div class="m bot">请求超时，请重试。</div>'; chat.scrollTop = chat.scrollHeight; };
   xhr.send(JSON.stringify({model:'glm-4-flash', messages: [
-    {role:'system', content: '你是途峰集团16家汽车经销商的数据分析助手。以下是各门店真实数据（按月×门店明细），请基于数据回答，用中文，简洁专业。单位：大定/交付=台，售后产值=万元。' + ctx},
+    {role:'system', content: '你是途峰集团16家汽车经销商的数据分析助手。下方数据按"YYYY-MM: 门店=数值"格式呈现，每个数据点都明确标注了年月。请严格按月份标签读取数据，不要把2026-06的数字误算到2026-07。单位：大定/交付=台，售后产值=万元。用中文，简洁专业。' + ctx},
     {role:'user', content: q}
   ], temperature: 0.2, max_tokens: 800}));
 }
@@ -1198,60 +1198,64 @@ function buildAiCtx() {
   if (!window.rawData) return '';
   var raw = window.rawData, ctx = ['\n## 数据明细\n'];
 
-  // 销售按月×门店
+  // 销售按月×门店（带月份标签，避免 AI 错位读取）
   var mtx = {}, mons = new Set(), sts = new Set();
   raw.sales.forEach(function(r) {
     var ym = r.date && r.date.substring(0,7);
-    if (ym) { mtx[r.store]=mtx[r.store]||{}; mtx[r.store][ym]=(mtx[r.store][ym]||0)+r.count; mons.add(ym); sts.add(r.store); }
+    if (ym) { mtx[ym]=mtx[ym]||{}; mtx[ym][r.store]=(mtx[ym][r.store]||0)+r.count; mons.add(ym); sts.add(r.store); }
   });
   var mA = Array.from(mons).sort(), sA = Array.from(sts);
-  ctx.push('### 大定 (门店×月, 台)');
-  ctx.push('| 门店 | ' + mA.join(' | ') + ' |');
-  ctx.push('|' + mA.map(function(){return '---'}).join('|') + '---|');
-  sA.forEach(function(s) {
-    var row = [s]; mA.forEach(function(m) { row.push(mtx[s][m]||0); }); ctx.push('|' + row.join(' | ') + ' |');
+  ctx.push('### 大定（每个月份一行，格式：YYYY-MM: 门店A=X台, 门店B=Y台, ...）');
+  mA.forEach(function(m) {
+    var row = [m + ': '];
+    var parts = [];
+    sA.forEach(function(s) { if (mtx[m][s]) parts.push(s + '=' + mtx[m][s] + '台'); });
+    row.push(parts.join(', '));
+    ctx.push(row.join(''));
   });
 
   // 车型
   var md = {}; raw.sales.forEach(function(r){md[r.model||'?']=(md[r.model||'?']||0)+r.count;});
-  ctx.push('### 车型累计 (台)');
-  for (var k in md) ctx.push(k + ': ' + md[k]);
+  ctx.push('### 车型累计');
+  for (var k in md) ctx.push(k + ': ' + md[k] + '台');
 
   // 交付按月×门店
   var dm = {}, dMons = new Set(), dSts = new Set();
   raw.delivery.forEach(function(r) {
     var ym = r.date && r.date.substring(0,7);
-    if (ym) { dm[r.store]=dm[r.store]||{}; dm[r.store][ym]=(dm[r.store][ym]||0)+r.total; dMons.add(ym); dSts.add(r.store); }
+    if (ym) { dm[ym]=dm[ym]||{}; dm[ym][r.store]=(dm[ym][r.store]||0)+r.total; dMons.add(ym); dSts.add(r.store); }
   });
   var dmA = Array.from(dMons).sort(), dsA = Array.from(dSts);
-  ctx.push('### 交付 (门店×月, 台)');
-  ctx.push('| 门店 | ' + dmA.join(' | ') + ' |');
-  ctx.push('|' + dmA.map(function(){return '---'}).join('|') + '---|');
-  dsA.forEach(function(s) {
-    var row = [s]; dmA.forEach(function(m) { row.push(dm[s][m]||0); }); ctx.push('|' + row.join(' | ') + ' |');
+  ctx.push('### 交付（每个月份一行，台数）');
+  dmA.forEach(function(m) {
+    var parts = [];
+    dsA.forEach(function(s) { if (dm[m][s]) parts.push(s + '=' + dm[m][s]); });
+    ctx.push(m + ': ' + parts.join(', '));
   });
 
-  // 售后按月×门店 (台次 + 产值)
+  // 售后按月×门店
   var am = {}, amV = {}, aMons = new Set(), aSts = new Set();
   raw.aftersales.forEach(function(r) {
     var ym = r.date && r.date.substring(0,7);
     if (ym) {
-      am[r.store]=am[r.store]||{}; amV[r.store]=amV[r.store]||{};
-      am[r.store][ym]=(am[r.store][ym]||0)+r.count;
-      amV[r.store][ym]=(amV[r.store][ym]||0)+r.value;
+      am[ym]=am[ym]||{}; amV[ym]=amV[ym]||{};
+      am[ym][r.store]=(am[ym][r.store]||0)+r.count;
+      amV[ym][r.store]=(amV[ym][r.store]||0)+r.value;
       aMons.add(ym); aSts.add(r.store);
     }
   });
   var amA = Array.from(aMons).sort(), asA = Array.from(aSts);
-  ctx.push('### 售后台次 (门店×月, 台)');
-  ctx.push('| 门店 | ' + amA.join(' | ') + ' |');
-  asA.forEach(function(s) {
-    var row = [s]; amA.forEach(function(m) { row.push(am[s][m]||0); }); ctx.push('|' + row.join(' | ') + ' |');
+  ctx.push('### 售后台次（每个月份一行）');
+  amA.forEach(function(m) {
+    var parts = [];
+    asA.forEach(function(s) { if (am[m][s]) parts.push(s + '=' + am[m][s] + '台'); });
+    ctx.push(m + ': ' + parts.join(', '));
   });
-  ctx.push('### 售后产值 (门店×月, 万元)');
-  ctx.push('| 门店 | ' + amA.join(' | ') + ' |');
-  asA.forEach(function(s) {
-    var row = [s]; amA.forEach(function(m) { row.push((amV[s][m]||0).toFixed(1)); }); ctx.push('|' + row.join(' | ') + ' |');
+  ctx.push('### 售后产值（每个月份一行，万元）');
+  amA.forEach(function(m) {
+    var parts = [];
+    asA.forEach(function(s) { if (amV[m][s]) parts.push(s + '=' + amV[m][s].toFixed(1)); });
+    ctx.push(m + ': ' + parts.join(', '));
   });
 
   // 售后类型
