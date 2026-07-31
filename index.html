@@ -92,6 +92,44 @@ body{font-family:'Microsoft YaHei','Segoe UI',sans-serif;background:#f0f2f5;colo
   .chart-container.short{height:220px}
   .chart-container.pie{height:250px}
 }
+/* ===== 智能助手 ===== */
+.chat-launcher{position:fixed;right:24px;bottom:24px;width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#1a237e,#3949ab);box-shadow:0 4px 16px rgba(26,35,126,.35);cursor:pointer;z-index:999;display:flex;align-items:center;justify-content:center;transition:transform .2s,box-shadow .2s}
+.chat-launcher:hover{transform:scale(1.08);box-shadow:0 6px 24px rgba(26,35,126,.45)}
+.chat-launcher svg{width:26px;height:26px;fill:#fff}
+.chat-launcher .unread-dot{position:absolute;top:4px;right:4px;width:10px;height:10px;border-radius:50%;background:#e53935;border:2px solid #fff;display:none}
+.chat-panel{display:none;position:fixed;right:24px;bottom:92px;width:420px;height:540px;background:#fff;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.18);z-index:999;flex-direction:column;overflow:hidden}
+.chat-panel.open{display:flex}
+.chat-header{background:linear-gradient(135deg,#1a237e,#283593);color:#fff;padding:14px 18px;display:flex;align-items:center;gap:10px;flex-shrink:0}
+.chat-header .ai-avatar{width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:18px}
+.chat-header strong{font-size:15px}
+.chat-header .sub{font-size:11px;opacity:.7;margin-left:auto}
+.chat-header .close-btn{background:none;border:none;color:#fff;font-size:20px;cursor:pointer;padding:0 4px;line-height:1;opacity:.7}
+.chat-header .close-btn:hover{opacity:1}
+.chat-body{flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:12px;background:#f8f9fb}
+.chat-body .msg{max-width:88%;padding:10px 14px;border-radius:14px;font-size:13px;line-height:1.55;word-break:break-word}
+.chat-body .msg.bot{background:#fff;align-self:flex-start;border-bottom-left-radius:4px;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.chat-body .msg.user{background:#e3f2fd;align-self:flex-end;border-bottom-right-radius:4px}
+.chat-body .msg .highlight{color:#1a237e;font-weight:600}
+.chat-body .msg em{font-style:normal;color:#e53935;font-weight:600}
+.chat-body .msg .dim{color:#888;font-size:11px}
+.chat-body .suggestions{display:flex;flex-wrap:wrap;gap:6px;padding:0 0 4px 0}
+.chat-body .suggestion{font-size:11px;padding:5px 10px;border-radius:14px;background:#e8eaf6;color:#283593;cursor:pointer;border:none;transition:background .2s;line-height:1.3}
+.chat-body .suggestion:hover{background:#c5cae9}
+.chat-input-area{display:flex;gap:8px;padding:12px 16px;border-top:1px solid #e0e0e0;background:#fff;flex-shrink:0}
+.chat-input-area input{flex:1;border:1px solid #ddd;border-radius:22px;padding:9px 16px;font-size:13px;outline:none;transition:border-color .2s}
+.chat-input-area input:focus{border-color:#1a237e}
+.chat-input-area button{background:linear-gradient(135deg,#1a237e,#3949ab);color:#fff;border:none;border-radius:22px;padding:9px 18px;font-size:13px;cursor:pointer;transition:opacity .2s;white-space:nowrap}
+.chat-input-area button:hover{opacity:.9}
+.chat-input-area button:disabled{opacity:.5;cursor:default}
+.typing-dots{display:flex;gap:4px;padding:8px 0}
+.typing-dots span{width:7px;height:7px;border-radius:50%;background:#bbb;animation:typingBounce 1.4s infinite}
+.typing-dots span:nth-child(2){animation-delay:.2s}
+.typing-dots span:nth-child(3){animation-delay:.4s}
+@keyframes typingBounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-6px)}}
+@media(max-width:480px){
+  .chat-panel{right:6px;left:6px;bottom:80px;width:auto;height:460px;border-radius:14px}
+  .chat-launcher{right:10px;bottom:10px;width:48px;height:48px}
+}
 </style>
 </head>
 <body>
@@ -1122,6 +1160,362 @@ refreshAll();
 window.addEventListener('resize', function() {
   Object.keys(charts).forEach(function(id){charts[id].resize()});
 });
+
+// ===== 智能数据助手 =====
+function toggleChat() {
+  var panel = document.getElementById('chatPanel');
+  panel.classList.toggle('open');
+  if (panel.classList.contains('open')) {
+    document.getElementById('chatUnread').style.display = 'none';
+    document.getElementById('chatInput').focus();
+  }
+}
+document.getElementById('chatLauncher').addEventListener('click', toggleChat);
+
+function askSuggestion(btn) {
+  document.getElementById('chatInput').value = btn.textContent;
+  sendMessage();
+}
+
+function sendMessage() {
+  var input = document.getElementById('chatInput');
+  var q = input.value.trim();
+  if (!q) return;
+  input.value = '';
+  var body = document.getElementById('chatBody');
+  // Remove suggestions if present
+  var s = body.querySelector('.suggestions');
+  if (s) s.remove();
+  // Add user message
+  body.innerHTML += '<div class="msg user">' + escapeHtml(q) + '</div>';
+  // Typing indicator
+  var ti = document.createElement('div');
+  ti.className = 'msg bot';
+  ti.innerHTML = '<div class="typing-dots"><span></span><span></span><span></span></div>';
+  body.appendChild(ti);
+  body.scrollTop = body.scrollHeight;
+  // Answer async
+  setTimeout(function() {
+    ti.remove();
+    var answer = answerQuestion(q);
+    body.innerHTML += '<div class="msg bot">' + answer + '</div>';
+    body.scrollTop = body.scrollHeight;
+  }, 400);
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ===== 数据问答引擎 =====
+var stores16 = (window.rawData && window.rawData.jipan || []).map(function(j){return j.store});
+
+function matchStores(q) {
+  // Check if asking about ALL stores
+  if (/全部|所有|整个|全店|16|十六/.test(q) && /门店|店/.test(q)) return stores16.slice();
+  // City grouping
+  var cities = ['重庆','成都','长沙','深圳','徐州','昆明','杭州','宜昌','哈尔滨','毕节','中山'];
+  for (var ci = 0; ci < cities.length; ci++) {
+    if (q.indexOf(cities[ci]) >= 0) {
+      return stores16.filter(function(s){return s.indexOf(cities[ci]) >= 0;});
+    }
+  }
+  // Exact or partial match
+  var matched = [];
+  for (var i = 0; i < stores16.length; i++) {
+    // Try partial match (at least 2 chars)
+    for (var j = 0; j <= stores16[i].length - 2; j++) {
+      var sub = stores16[i].substring(j, j + 3);
+      if (sub.length >= 2 && q.indexOf(sub) >= 0) {
+        if (matched.indexOf(stores16[i]) < 0) matched.push(stores16[i]);
+        break;
+      }
+    }
+  }
+  return matched;
+}
+
+function matchModels(q) {
+  var models = [];
+  if (/m5|M5/.test(q)) models.push('M5');
+  if (/m6|M6/.test(q)) models.push('M6');
+  if (/m7|M7/.test(q)) models.push('M7');
+  if (/m8|M8/.test(q)) models.push('M8');
+  if (/m9|M9/.test(q)) models.push('M9');
+  return models;
+}
+
+function getMonthNum(q) {
+  var m = q.match(/(\d{1,2})\s*月/);
+  if (m) return parseInt(m[1]);
+  return null;
+}
+
+function getYMFromNum(monthNum) {
+  // Default to 2026, pad month
+  return '2026-' + (monthNum < 10 ? '0' + monthNum : monthNum);
+}
+
+function getDataFull() {
+  if (!window.rawData) { return {sales:[],delivery:[],aftersales:[],jipan:[]}; }
+  return {
+    sales: window.rawData.sales || [],
+    delivery: window.rawData.delivery || [],
+    aftersales: window.rawData.aftersales || [],
+    jipan: window.rawData.jipan || []
+  };
+}
+
+function filterByMonth(data, ym) {
+  return data.filter(function(r){return r.date && r.date.substring(0,7) === ym;});
+}
+
+function filterByStores(data, stores) {
+  if (!stores || !stores.length) return data;
+  return data.filter(function(r){return stores.indexOf(r.store) >= 0;});
+}
+
+function filterByModels(data, models) {
+  if (!models || !models.length) return data;
+  return data.filter(function(r){return r.model && models.indexOf(r.model) >= 0;});
+}
+
+function sumCount(data) {
+  return data.reduce(function(s,r){return s + (r.count||0)}, 0);
+}
+
+function sumValue(data) {
+  return data.reduce(function(s,r){return s + (r.value||0)}, 0);
+}
+
+function sumDelivery(data) {
+  return data.reduce(function(s,r){return s + (r.total||0)}, 0);
+}
+
+function groupByStore(data) {
+  var map = {};
+  data.forEach(function(r){
+    map[r.store] = (map[r.store]||0) + (r.count||r.total||0);
+  });
+  return map;
+}
+
+function groupByStoreValue(data) {
+  var map = {};
+  data.forEach(function(r){
+    map[r.store] = (map[r.store]||0) + (r.value||0);
+  });
+  return map;
+}
+
+function groupByModel(data) {
+  var map = {};
+  data.forEach(function(r){
+    var m = r.model || '未知';
+    map[m] = (map[m]||0) + (r.count||0);
+  });
+  return map;
+}
+
+function sortMap(map, asc) {
+  var arr = [];
+  for (var k in map) arr.push({k:k, v:map[k]});
+  arr.sort(function(a,b){return asc ? a.v - b.v : b.v - a.v;});
+  return arr;
+}
+
+function fmtBig(n) {
+  if (n >= 10000) return (n/10000).toFixed(1) + '万';
+  return n.toLocaleString();
+}
+
+function answerQuestion(q) {
+  var raw = getDataFull();
+  if (!raw.sales.length && !raw.delivery.length && !raw.aftersales.length)
+    return '暂时没有加载到数据，请刷新页面。';
+
+  var storesQ = matchStores(q);
+  var modelsQ = matchModels(q);
+  var monthNum = getMonthNum(q);
+  var ym = monthNum ? getYMFromNum(monthNum) : null;
+
+  // === 基盘数 ===
+  if (/基盘/.test(q)) {
+    if (/所有|全部|排名/.test(q) || !storesQ.length) {
+      var jp = raw.jipan.slice().sort(function(a,b){return b.count - a.count;});
+      var lines = jp.map(function(j,i){return (i+1)+'. <span class="highlight">'+j.store+'</span> — '+fmtBig(j.count)+' 台';});
+      var topN = /前\s*(\d+)/.test(q) ? parseInt(RegExp.$1) : (jp.length > 6 ? 6 : jp.length);
+      return '📋 基盘数排名（前' + topN + '）：<br>' + lines.slice(0,topN).join('<br>');
+    }
+    var jpItem = raw.jipan.filter(function(j){return storesQ.indexOf(j.store) >= 0;});
+    if (!jpItem.length) return '未找到该门店的基盘数据。';
+    return jpItem.map(function(j){return '<span class="highlight">'+j.store+'</span> 基盘数：<em>'+fmtBig(j.count)+'</em> 台';}).join('<br>');
+  }
+
+  // === 售后 ===
+  if (/售后|进厂|维修|产值|单产|保养/.test(q)) {
+    var asData = raw.aftersales;
+    if (storesQ.length) asData = filterByStores(asData, storesQ);
+    if (ym) {
+      asData = filterByMonth(asData, ym);
+      // Monthly report
+      var countVal = sumCount(asData);
+      var valueVal = sumValue(asData);
+      var danchan = countVal > 0 ? (valueVal * 10000 / countVal).toFixed(0) : 0;
+      var scope = storesQ.length ? storesQ.join('、') : '全部16店';
+      var mLabel = monthNum + '月';
+      return '📊 ' + scope + ' <span class="highlight">' + mLabel + '</span> 售后数据：<br>进厂台次：<em>' + fmtBig(countVal) + '</em> 台<br>产值：<em>' + valueVal.toFixed(1) + '</em> 万元<br>单车产值：<em>' + danchan + '</em> 元/台';
+    }
+    if (/产值.*排名|排名.*产值/.test(q)) {
+      var gbv = groupByStoreValue(asData);
+      var topN = /前\s*(\d+)/.test(q) ? parseInt(RegExp.$1) : 10;
+      var ranked = sortMap(gbv).slice(0, topN);
+      return '💰 累计产值排名（前' + topN + '）：<br>' + ranked.map(function(r,i){return (i+1)+'. <span class="highlight">'+r.k+'</span> — <em>'+r.v.toFixed(1)+'</em> 万';}).join('<br>');
+    }
+    if (/单产.*排名|排名.*单产/.test(q)) {
+      // Need count and value per store
+      var gbc = {};
+      var gbv2 = {};
+      asData.forEach(function(r){
+        gbc[r.store] = (gbc[r.store]||0) + (r.count||0);
+        gbv2[r.store] = (gbv2[r.store]||0) + (r.value||0);
+      });
+      var dc = [];
+      for (var sk in gbc) {
+        if (gbc[sk] > 0) dc.push({k:sk, v:(gbv2[sk]*10000/gbc[sk])});
+      }
+      dc.sort(function(a,b){return b.v - a.v;});
+      var topN2 = /前\s*(\d+)/.test(q) ? parseInt(RegExp.$1) : 10;
+      return '🔧 单产排名（前' + topN2 + '）：<br>' + dc.slice(0,topN2).map(function(r,i){return (i+1)+'. <span class="highlight">'+r.k+'</span> — <em>'+r.v.toFixed(0)+'</em> 元/台';}).join('<br>');
+    }
+    if (/排名|前\s*\d/.test(q)) {
+      var gbs = groupByStore(asData);
+      var topN3 = /前\s*(\d+)/.test(q) ? parseInt(RegExp.$1) : 10;
+      var ranked2 = sortMap(gbs).slice(0, topN3);
+      return '🔧 累计台次排名（前' + topN3 + '）：<br>' + ranked2.map(function(r,i){return (i+1)+'. <span class="highlight">'+r.k+'</span> — <em>'+fmtBig(r.v)+'</em> 台';}).join('<br>');
+    }
+    var totalCount = sumCount(asData);
+    var totalValue = sumValue(asData);
+    var scope2 = storesQ.length ? ' ' + storesQ.join('、') : '';
+    return '🔧 售后累计数据' + scope2 + '：<br>进厂台次：<em>' + fmtBig(totalCount) + '</em> 台<br>产值：<em>' + totalValue.toFixed(1) + '</em> 万元';
+  }
+
+  // === 交付 ===
+  if (/交付|交车/.test(q)) {
+    var dvData = raw.delivery;
+    if (storesQ.length) dvData = filterByStores(dvData, storesQ);
+    if (ym) {
+      dvData = filterByMonth(dvData, ym);
+      var dvTotal = sumDelivery(dvData);
+      var scope3 = storesQ.length ? storesQ.join('、') : '全部16店';
+      return '🚗 ' + scope3 + ' <span class="highlight">' + monthNum + '月</span> 交付数据：<br>交付台数：<em>' + fmtBig(dvTotal) + '</em> 台';
+    }
+    if (/排名/.test(q)) {
+      var gbd = {};
+      dvData.forEach(function(r){gbd[r.store]=(gbd[r.store]||0)+(r.total||0);});
+      var ranked3 = sortMap(gbd).slice(0,10);
+      return '🚗 累计交付排名（前10）：<br>' + ranked3.map(function(r,i){return (i+1)+'. <span class="highlight">'+r.k+'</span> — <em>'+fmtBig(r.v)+'</em> 台';}).join('<br>');
+    }
+    // Model breakdown for delivery
+    if (modelsQ.length) {
+      var dvModelTotal = 0;
+      var dvModelDetail = {};
+      dvData.forEach(function(r){
+        modelsQ.forEach(function(m){
+          var mk = m.toLowerCase();
+          var v = r[mk] || 0;
+          dvModelTotal += v;
+          dvModelDetail[m] = (dvModelDetail[m]||0) + v;
+        });
+      });
+      var parts = modelsQ.map(function(m){return m+': <em>'+fmtBig(dvModelDetail[m]||0)+'</em> 台';});
+      return '🚗 交付车型数据：<br>' + parts.join('<br>') + '<br>合计：<em>' + fmtBig(dvModelTotal) + '</em> 台';
+    }
+    var dvAll = sumDelivery(dvData);
+    var scopeD = storesQ.length ? ' ' + storesQ.join('、') : '';
+    return '🚗 交付累计数据' + scopeD + '：<em>' + fmtBig(dvAll) + '</em> 台';
+  }
+
+  // === 销售（大定）===
+  var sData = raw.sales;
+  if (storesQ.length) sData = filterByStores(sData, storesQ);
+  if (modelsQ.length) sData = filterByModels(sData, modelsQ);
+
+  // Specific month
+  if (ym) {
+    var smData = filterByMonth(sData, ym);
+    if (/排名/.test(q)) {
+      var gbs2 = groupByStore(smData);
+      var ranked4 = sortMap(gbs2);
+      var topN4 = /前\s*(\d+)/.test(q) ? parseInt(RegExp.$1) : 10;
+      var scope4 = storesQ.length ? storesQ.join('、') : '全部16店';
+      return '📈 ' + scope4 + ' <span class="highlight">' + monthNum + '月</span> 大定排名（前' + topN4 + '）：<br>' + ranked4.slice(0,topN4).map(function(r,i){return (i+1)+'. <span class="highlight">'+r.k+'</span> — <em>'+r.v+'</em> 台';}).join('<br>');
+    }
+    if (modelsQ.length) {
+      var gbm = groupByModel(smData);
+      var totalSm = sumCount(smData);
+      var parts2 = modelsQ.map(function(m){return m+': <em>'+(gbm[m]||0)+'</em> 台';});
+      return '📈 ' + (storesQ.length ? storesQ.join('、') : '全部16店') + ' <span class="highlight">' + monthNum + '月</span> 大定：<br>' + parts2.join('<br>') + '<br>合计：<em>' + totalSm + '</em> 台';
+    }
+    var smCount = sumCount(smData);
+    var scope5 = storesQ.length ? storesQ.join('、') : '全部16店';
+    return '📈 ' + scope5 + ' <span class="highlight">' + monthNum + '月</span> 大定：<em>' + smCount + '</em> 台';
+  }
+
+  // Cumulative / ranking
+  if (/排名|前\s*\d/.test(q)) {
+    var gbsAll = groupByStore(sData);
+    var rankedAll = sortMap(gbsAll);
+    var topNAll = /前\s*(\d+)/.test(q) ? parseInt(RegExp.$1) : 10;
+    return '📈 累计大定排名（前' + topNAll + '）：<br>' + rankedAll.slice(0,topNAll).map(function(r,i){return (i+1)+'. <span class="highlight">'+r.k+'</span> — <em>'+fmtBig(r.v)+'</em> 台';}).join('<br>');
+  }
+
+  if (modelsQ.length) {
+    var gbmAll = groupByModel(sData);
+    var totalAll = sumCount(sData);
+    var parts3 = modelsQ.map(function(m){return m+': <em>' + fmtBig(gbmAll[m]||0) + '</em> 台';});
+    var scope6 = storesQ.length ? ' ' + storesQ.join('、') : '';
+    return '📈 累计大定数据' + scope6 + '：<br>' + parts3.join('<br>') + '<br>合计：<em>' + fmtBig(totalAll) + '</em> 台';
+  }
+
+  // General query
+  var total = sumCount(sData);
+  var storeCount = new Set(sData.map(function(r){return r.store;})).size;
+  var dateRange = '';
+  if (sData.length) {
+    var dates = sData.map(function(r){return r.date;}).sort();
+    dateRange = dates[0] + ' ~ ' + dates[dates.length-1];
+  }
+  return '📈 大定数据汇总：<br>累计大定：<em>' + fmtBig(total) + '</em> 台<br>覆盖门店：<em>' + storeCount + '</em> 家<br>数据范围：<span class="dim">' + dateRange + '</span>';
+}
 </script>
+<!-- 智能助手 -->
+<div class="chat-launcher" id="chatLauncher" title="智能数据助手">
+  <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/><circle cx="8" cy="10" r="1.5"/><circle cx="12" cy="10" r="1.5"/><circle cx="16" cy="10" r="1.5"/><path d="M8 14h8" stroke="currentColor" stroke-width="2" fill="none"/></svg>
+  <span class="unread-dot" id="chatUnread"></span>
+</div>
+<div class="chat-panel" id="chatPanel">
+  <div class="chat-header">
+    <div class="ai-avatar">📊</div>
+    <div><strong>数据助手</strong></div>
+    <span class="sub">途峰数据问答</span>
+    <button class="close-btn" onclick="toggleChat()">×</button>
+  </div>
+  <div class="chat-body" id="chatBody">
+    <div class="msg bot">你好！我是途峰数据助手，可以回答关于销售、交付、售后、基盘数的问题。试试问我：</div>
+    <div class="suggestions">
+      <button class="suggestion" onclick="askSuggestion(this)">7月哪个门店大定最多？</button>
+      <button class="suggestion" onclick="askSuggestion(this)">M9今年累计卖了多少台？</button>
+      <button class="suggestion" onclick="askSuggestion(this)">售后产值排名前五是谁？</button>
+      <button class="suggestion" onclick="askSuggestion(this)">重庆的门店交付总数是多少？</button>
+      <button class="suggestion" onclick="askSuggestion(this)">6月大定环比增长的门店？</button>
+      <button class="suggestion" onclick="askSuggestion(this)">基盘数最多的三家门店？</button>
+    </div>
+  </div>
+  <div class="chat-input-area">
+    <input id="chatInput" placeholder="输入数据问题，按回车发送..." onkeydown="if(event.key==='Enter')sendMessage()">
+    <button onclick="sendMessage()">发送</button>
+  </div>
+</div>
 </body>
 </html>
