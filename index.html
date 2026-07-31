@@ -92,16 +92,32 @@ body{font-family:'Microsoft YaHei','Segoe UI',sans-serif;background:#f0f2f5;colo
   .chart-container.short{height:220px}
   .chart-container.pie{height:250px}
 }
-/* ===== WorkBuddy 助手入口 ===== */
-.wb-helper{position:fixed;right:24px;bottom:24px;display:flex;align-items:center;gap:10px;z-index:999}
-.wb-helper .bubble{background:linear-gradient(135deg,#1a237e,#3949ab);color:#fff;padding:10px 16px;border-radius:20px;font-size:13px;cursor:pointer;box-shadow:0 4px 16px rgba(26,35,126,.3);white-space:nowrap;transition:transform .2s}
-.wb-helper .bubble:hover{transform:scale(1.04)}
-.wb-helper .icon{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#1a237e,#3949ab);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(26,35,126,.3);cursor:pointer;transition:transform .2s;font-size:20px}
-.wb-helper .icon:hover{transform:scale(1.08)}
+/* ===== AI 数据助手 ===== */
+.ai-bubble{position:fixed;right:24px;bottom:24px;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#1a237e,#3949ab);box-shadow:0 4px 16px rgba(26,35,126,.35);cursor:pointer;z-index:999;display:flex;align-items:center;justify-content:center;transition:.2s;font-size:22px}
+.ai-bubble:hover{transform:scale(1.1)}
+.ai-panel{display:none;position:fixed;right:24px;bottom:88px;width:400px;height:520px;background:#fff;border-radius:14px;box-shadow:0 8px 40px rgba(0,0,0,.18);z-index:999;flex-direction:column;overflow:hidden}
+.ai-panel.open{display:flex}
+.ai-head{background:#1a237e;color:#fff;padding:12px 16px;font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px;flex-shrink:0}
+.ai-head .close{background:none;border:none;color:#fff;font-size:18px;cursor:pointer;margin-left:auto;opacity:.7}
+.ai-head .close:hover{opacity:1}
+.ai-chat{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px;background:#f5f6fa}
+.ai-chat .m{max-width:86%;padding:8px 12px;border-radius:12px;font-size:13px;line-height:1.5;word-break:break-word}
+.ai-chat .m.bot{background:#fff;align-self:flex-start;border-bottom-left-radius:3px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.ai-chat .m.user{background:#e3f2fd;align-self:flex-end;border-bottom-right-radius:3px}
+.ai-chat .m .tag{font-size:10px;color:#3949ab;margin-bottom:2px}
+.ai-input{display:flex;gap:8px;padding:10px 14px;border-top:1px solid #e0e0e0;background:#fff;flex-shrink:0}
+.ai-input input{flex:1;border:1px solid #ddd;border-radius:18px;padding:8px 14px;font-size:13px;outline:none}
+.ai-input input:focus{border-color:#1a237e}
+.ai-input button{background:#1a237e;color:#fff;border:none;border-radius:18px;padding:8px 16px;font-size:13px;cursor:pointer}
+.ai-input button:hover{opacity:.9}
+.ai-dots{display:flex;gap:4px;padding:6px 0}
+.ai-dots span{width:6px;height:6px;border-radius:50%;background:#bbb;animation:aiBounce 1.4s infinite}
+.ai-dots span:nth-child(2){animation-delay:.2s}
+.ai-dots span:nth-child(3){animation-delay:.4s}
+@keyframes aiBounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-5px)}}
 @media(max-width:480px){
-  .wb-helper{right:10px;bottom:10px}
-  .wb-helper .bubble{font-size:12px;padding:8px 14px}
-  .wb-helper .icon{width:40px;height:40px;font-size:18px}
+  .ai-bubble{right:10px;bottom:10px;width:44px;height:44px;font-size:18px}
+  .ai-panel{right:6px;left:6px;bottom:70px;width:auto;height:460px}
 }
 </style>
 </head>
@@ -1134,9 +1150,135 @@ window.addEventListener('resize', function() {
   Object.keys(charts).forEach(function(id){charts[id].resize()});
 });
 
+// ===== AI 数据助手 (智谱 GLM) =====
+var AI_KEY = '78556801f1d24bc5a6bb2e0be17055ce.Ej6FvPwHu8WFTaPP';
+
+function toggleAi() {
+  document.getElementById('aiPanel').classList.toggle('open');
+  if (document.getElementById('aiPanel').classList.contains('open'))
+    document.getElementById('aiInput').focus();
+}
+
+function aiSend() {
+  var inp = document.getElementById('aiInput'), q = inp.value.trim();
+  if (!q) return; inp.value = '';
+  var chat = document.getElementById('aiChat');
+  chat.innerHTML += '<div class="m user">' + q.replace(/</g,'&lt;') + '</div>';
+  var dots = chat.appendChild(document.createElement('div'));
+  dots.className = 'm bot'; dots.innerHTML = '<div class="ai-dots"><span></span><span></span><span></span></div>';
+  chat.scrollTop = chat.scrollHeight;
+
+  var ctx = buildAiCtx();
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', 'https://open.bigmodel.cn/api/paas/v4/chat/completions', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.setRequestHeader('Authorization', 'Bearer ' + AI_KEY);
+  xhr.timeout = 45000;
+  xhr.onload = function() {
+    dots.remove();
+    if (xhr.status === 200) {
+      var r = JSON.parse(xhr.responseText);
+      var t = r.choices && r.choices[0] ? r.choices[0].message.content : '无响应';
+      chat.innerHTML += '<div class="m bot"><span class="tag">AI</span><br>' + t.replace(/</g,'&lt;').replace(/\n/g,'<br>') + '</div>';
+    } else {
+      try { var e = JSON.parse(xhr.responseText); chat.innerHTML += '<div class="m bot">错误: ' + (e.error?e.error.message:'HTTP '+xhr.status) + '</div>'; }
+      catch(e2) { chat.innerHTML += '<div class="m bot">错误: HTTP ' + xhr.status + '</div>'; }
+    }
+    chat.scrollTop = chat.scrollHeight;
+  };
+  xhr.onerror = function() { dots.remove(); chat.innerHTML += '<div class="m bot">网络错误，请检查网络连接。</div>'; chat.scrollTop = chat.scrollHeight; };
+  xhr.ontimeout = function() { dots.remove(); chat.innerHTML += '<div class="m bot">请求超时，请重试。</div>'; chat.scrollTop = chat.scrollHeight; };
+  xhr.send(JSON.stringify({model:'glm-4-flash', messages: [
+    {role:'system', content: '你是途峰集团16家汽车经销商的数据分析助手。以下是各门店真实数据（按月×门店明细），请基于数据回答，用中文，简洁专业。单位：大定/交付=台，售后产值=万元。' + ctx},
+    {role:'user', content: q}
+  ], temperature: 0.2, max_tokens: 800}));
+}
+
+function buildAiCtx() {
+  if (!window.rawData) return '';
+  var raw = window.rawData, ctx = ['\n## 数据明细\n'];
+
+  // 销售按月×门店
+  var mtx = {}, mons = new Set(), sts = new Set();
+  raw.sales.forEach(function(r) {
+    var ym = r.date && r.date.substring(0,7);
+    if (ym) { mtx[r.store]=mtx[r.store]||{}; mtx[r.store][ym]=(mtx[r.store][ym]||0)+r.count; mons.add(ym); sts.add(r.store); }
+  });
+  var mA = Array.from(mons).sort(), sA = Array.from(sts);
+  ctx.push('### 大定 (门店×月, 台)');
+  ctx.push('| 门店 | ' + mA.join(' | ') + ' |');
+  ctx.push('|' + mA.map(function(){return '---'}).join('|') + '---|');
+  sA.forEach(function(s) {
+    var row = [s]; mA.forEach(function(m) { row.push(mtx[s][m]||0); }); ctx.push('|' + row.join(' | ') + ' |');
+  });
+
+  // 车型
+  var md = {}; raw.sales.forEach(function(r){md[r.model||'?']=(md[r.model||'?']||0)+r.count;});
+  ctx.push('### 车型累计 (台)');
+  for (var k in md) ctx.push(k + ': ' + md[k]);
+
+  // 交付按月×门店
+  var dm = {}, dMons = new Set(), dSts = new Set();
+  raw.delivery.forEach(function(r) {
+    var ym = r.date && r.date.substring(0,7);
+    if (ym) { dm[r.store]=dm[r.store]||{}; dm[r.store][ym]=(dm[r.store][ym]||0)+r.total; dMons.add(ym); dSts.add(r.store); }
+  });
+  var dmA = Array.from(dMons).sort(), dsA = Array.from(dSts);
+  ctx.push('### 交付 (门店×月, 台)');
+  ctx.push('| 门店 | ' + dmA.join(' | ') + ' |');
+  ctx.push('|' + dmA.map(function(){return '---'}).join('|') + '---|');
+  dsA.forEach(function(s) {
+    var row = [s]; dmA.forEach(function(m) { row.push(dm[s][m]||0); }); ctx.push('|' + row.join(' | ') + ' |');
+  });
+
+  // 售后按月×门店 (台次 + 产值)
+  var am = {}, amV = {}, aMons = new Set(), aSts = new Set();
+  raw.aftersales.forEach(function(r) {
+    var ym = r.date && r.date.substring(0,7);
+    if (ym) {
+      am[r.store]=am[r.store]||{}; amV[r.store]=amV[r.store]||{};
+      am[r.store][ym]=(am[r.store][ym]||0)+r.count;
+      amV[r.store][ym]=(amV[r.store][ym]||0)+r.value;
+      aMons.add(ym); aSts.add(r.store);
+    }
+  });
+  var amA = Array.from(aMons).sort(), asA = Array.from(aSts);
+  ctx.push('### 售后台次 (门店×月, 台)');
+  ctx.push('| 门店 | ' + amA.join(' | ') + ' |');
+  asA.forEach(function(s) {
+    var row = [s]; amA.forEach(function(m) { row.push(am[s][m]||0); }); ctx.push('|' + row.join(' | ') + ' |');
+  });
+  ctx.push('### 售后产值 (门店×月, 万元)');
+  ctx.push('| 门店 | ' + amA.join(' | ') + ' |');
+  asA.forEach(function(s) {
+    var row = [s]; amA.forEach(function(m) { row.push((amV[s][m]||0).toFixed(1)); }); ctx.push('|' + row.join(' | ') + ' |');
+  });
+
+  // 售后类型
+  var at = {}; raw.aftersales.forEach(function(r){var t=r.type||r.model||'?';at[t]=(at[t]||0)+r.count;});
+  ctx.push('### 进厂属性 (台次)');
+  for (var tk in at) ctx.push(tk + ': ' + at[tk]);
+
+  // 基盘
+  ctx.push('### 基盘数 (台)');
+  raw.jipan.forEach(function(j){ctx.push(j.store + ': ' + j.count);});
+
+  ctx.push('### 说明');
+  ctx.push('销售数据有2025和2026两年，"同比"请用2025 vs 2026同月计算。没有2024年数据。');
+  return '\n' + ctx.join('\n');
+}
+
 </script>
-<div class="wb-helper">
-  <span class="bubble" onclick="this.style.display='none';this.nextElementSibling.style.display='none'">💬 向 WorkBuddy 提问</span>
+<div class="ai-bubble" id="aiBubble" onclick="toggleAi()">💬</div>
+<div class="ai-panel" id="aiPanel">
+  <div class="ai-head">🤖 AI 数据助手<button class="close" onclick="toggleAi()">×</button></div>
+  <div class="ai-chat" id="aiChat">
+    <div class="m bot">你好！我是途峰数据助手，可以回答销售/交付/售后/基盘数的问题。<br>试试问我：</div>
+  </div>
+  <div class="ai-input">
+    <input id="aiInput" placeholder="输入问题，按回车发送..." onkeydown="if(event.key==='Enter')aiSend()">
+    <button onclick="aiSend()">发送</button>
+  </div>
 </div>
 </body>
 </html>
