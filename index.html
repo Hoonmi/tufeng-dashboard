@@ -1625,6 +1625,8 @@ function answerQuestion(q) {
 // ===== DeepSeek AI 问答 =====
 var DS_API_KEY = localStorage.getItem('ds_api_key') || '';
 var DS_API_URL = 'https://api.deepseek.com/chat/completions';
+// CORS 代理（DeepSeek API 不支持浏览器直接调用）
+var DS_PROXY = 'https://corsproxy.io/?url=' + encodeURIComponent(DS_API_URL);
 
 function openSettings() {
   document.getElementById('apiKeyInput').value = DS_API_KEY;
@@ -1733,10 +1735,10 @@ function callDeepSeek(userMessage, historyMessages) {
     }
     msgs.push({role:'user', content: userMessage});
     var xhr = new XMLHttpRequest();
-    xhr.open('POST', DS_API_URL, true);
+    xhr.open('POST', DS_PROXY, true);
     xhr.setRequestHeader('Content-Type', 'application/json');
     xhr.setRequestHeader('Authorization', 'Bearer ' + DS_API_KEY);
-    xhr.timeout = 30000;
+    xhr.timeout = 60000;
     xhr.onload = function() {
       if (xhr.status === 200) {
         try {
@@ -1756,7 +1758,7 @@ function callDeepSeek(userMessage, historyMessages) {
     };
     xhr.onerror = function() { reject('网络错误'); };
     xhr.ontimeout = function() { reject('请求超时'); };
-    xhr.send(JSON.stringify({model:'deepseek-chat', messages:msgs, temperature:0.3, max_tokens:800}));
+    xhr.send(JSON.stringify({model:'deepseek-v4-flash', messages:msgs, temperature:0.3, max_tokens:1000}));
   });
 }
 
