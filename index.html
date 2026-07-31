@@ -1760,7 +1760,7 @@ function callDeepSeek(userMessage, historyMessages) {
   });
 }
 
-// 修改 sendMessage：优先规则引擎，复杂问题调 AI
+// 全部使用 DeepSeek AI 问答
 var _origSendMessage = sendMessage;
 sendMessage = function() {
   var input = document.getElementById('chatInput');
@@ -1773,27 +1773,8 @@ sendMessage = function() {
 
   body.innerHTML += '<div class="msg user">' + escapeHtml(q) + '</div>';
 
-  // 判断：纯简单数字查询用规则引擎，否则用 AI
-  var isComplex = /为什么|原因|分析|增长|下降|对比|占比|如何|怎么|是否|哪些|趋势|表现|建议|总结|评价|哪个|最好|最差|超过|高于|低于|相差|加起来|总共.*差异|不同/.test(q) || q.length > 20;
-
-  if (!isComplex) {
-    // 先试规则引擎
-    var reAnswer = answerQuestion(q);
-    // 如果引擎返回了有意义的结果（不包含"数据汇总"这种兜底），直接用
-    if (reAnswer && !/数据汇总/.test(reAnswer) && !/累计大定：/.test(reAnswer)) {
-      body.innerHTML += '<div class="msg bot">' + reAnswer + '</div>';
-      body.scrollTop = body.scrollHeight;
-      return;
-    }
-  }
-
   if (!DS_API_KEY) {
-    // 无 Key，用规则引擎兜底
-    var fallback = answerQuestion(q);
-    if (/数据汇总/.test(fallback) || /累计大定：/.test(fallback)) {
-      fallback = answerQuestion(q) + '<br><br><span class="dim">⚙ 配置 DeepSeek API Key 可解锁更智能的问答。点击标题栏 ⚙ 按钮设置。</span>';
-    }
-    body.innerHTML += '<div class="msg bot">' + fallback + '</div>';
+    body.innerHTML += '<div class="msg bot">请先设置 DeepSeek API Key。<br><span class="dim">点击标题栏 ⚙ 按钮设置。</span></div>';
     body.scrollTop = body.scrollHeight;
     return;
   }
@@ -1812,12 +1793,7 @@ sendMessage = function() {
     body.scrollTop = body.scrollHeight;
   }).catch(function(err) {
     ti.remove();
-    if (err === 'no_key') {
-      body.innerHTML += '<div class="msg bot">请先设置 DeepSeek API Key。<br><span class="dim">点击标题栏 ⚙ 按钮设置。</span></div>';
-    } else {
-      var fallback = answerQuestion(q);
-      body.innerHTML += '<div class="msg bot">' + fallback + '<br><span class="dim">(AI 调用失败: ' + err + ')</span></div>';
-    }
+    body.innerHTML += '<div class="msg bot"><span class="dim">调用失败：' + escapeHtml(err) + '</span><br><span class="dim">请检查 API Key 是否正确或网络连接。</span></div>';
     body.scrollTop = body.scrollHeight;
   });
 };
