@@ -97,7 +97,10 @@ body{font-family:'Microsoft YaHei','Segoe UI',sans-serif;background:#f0f2f5;colo
 .pw-box{background:#fff;border-radius:16px;padding:40px 36px;box-shadow:0 8px 32px rgba(0,0,0,.1);text-align:center;max-width:360px;width:90%}
 .pw-box h2{font-size:20px;color:#1a237e;margin-bottom:8px}
 .pw-box .sub{font-size:13px;color:#888;margin-bottom:20px}
-.pw-box input{width:100%;border:2px solid #ddd;border-radius:10px;padding:12px 16px;font-size:15px;text-align:center;outline:none;transition:border-color .2s}
+.pw-box input{width:100%;border:2px solid #ddd;border-radius:10px;padding:12px 40px 12px 16px;font-size:15px;text-align:center;outline:none;transition:border-color .2s}
+.pw-box .pw-eye{position:absolute;right:12px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:16px;opacity:.4;background:none;border:none;padding:4px}
+.pw-box .pw-eye:hover{opacity:.8}
+.pw-box .pw-wrap{position:relative;width:100%}
 .pw-box input:focus{border-color:#1a237e}
 .pw-box button{width:100%;background:linear-gradient(135deg,#1a237e,#3949ab);color:#fff;border:none;border-radius:10px;padding:12px;font-size:15px;cursor:pointer;margin-top:14px;transition:opacity .2s}
 .pw-box button:hover{opacity:.9}
@@ -137,7 +140,7 @@ body{font-family:'Microsoft YaHei','Segoe UI',sans-serif;background:#f0f2f5;colo
   <div class="pw-box">
     <h2>🔐 途峰数据仪表盘</h2>
     <div class="sub">请输入访问密码</div>
-    <input id="pwInput" type="password" placeholder="输入密码 (8888)" onkeydown="if(event.key==='Enter')unlock()">
+    <div class="pw-wrap"><input id="pwInput" type="password" placeholder="输入密码" onkeydown="if(event.key==='Enter')unlock()"><button class="pw-eye" onclick="var i=document.getElementById('pwInput');i.type=i.type==='password'?'text':'password'">👁</button></div>
     <button onclick="unlock()">解锁</button>
     <div class="err" id="pwErr">密码错误，请重试</div>
     <div class="hint">数据已加密保护，密码请联系管理员</div>
@@ -273,8 +276,11 @@ async function decryptData(encB64, password) {
   var keyMat = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
   var bits = await crypto.subtle.deriveBits({name:'PBKDF2', salt:salt, iterations:120000, hash:'SHA-256'}, keyMat, 256);
   var aesKey = await crypto.subtle.importKey('raw', bits, {name:'AES-GCM'}, false, ['decrypt']);
-  var combined = new Uint8Array(iv.length + ct.length); combined.set(iv); combined.set(ct, iv.length);
-  var decrypted = await crypto.subtle.decrypt({name:'AES-GCM', iv:iv, tagLength:128}, aesKey, combined);
+  // Web Crypto AES-GCM 需要 ciphertext+tag 拼接
+  var ctWithTag = new Uint8Array(ct.length + tag.length);
+  ctWithTag.set(ct);
+  ctWithTag.set(tag, ct.length);
+  var decrypted = await crypto.subtle.decrypt({name:'AES-GCM', iv:iv, tagLength:128}, aesKey, ctWithTag);
   return new TextDecoder().decode(decrypted);
 }
 
