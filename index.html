@@ -93,9 +93,9 @@ body{font-family:'Microsoft YaHei','Segoe UI',sans-serif;background:#f0f2f5;colo
   .chart-container.pie{height:250px}
 }
 /* ===== AI 数据助手 ===== */
-.ai-bubble{position:fixed;right:24px;bottom:24px;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#1a237e,#3949ab);box-shadow:0 4px 16px rgba(26,35,126,.35);cursor:pointer;z-index:999;display:flex;align-items:center;justify-content:center;transition:.2s;font-size:22px}
-.ai-bubble:hover{transform:scale(1.1)}
-.ai-panel{display:none;position:fixed;right:24px;bottom:88px;width:400px;height:520px;background:#fff;border-radius:14px;box-shadow:0 8px 40px rgba(0,0,0,.18);z-index:999;flex-direction:column;overflow:hidden}
+.ai-bubble{position:fixed;right:24px;bottom:24px;width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#1a237e,#3949ab);box-shadow:0 6px 20px rgba(26,35,126,.4);cursor:pointer;z-index:9999;display:flex;align-items:center;justify-content:center;transition:.2s;font-size:24px;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none}
+.ai-bubble:active{transform:scale(.92)}
+.ai-panel{display:none;position:fixed;right:24px;bottom:96px;width:400px;height:520px;background:#fff;border-radius:14px;box-shadow:0 8px 40px rgba(0,0,0,.18);z-index:9999;flex-direction:column;overflow:hidden}
 .ai-panel.open{display:flex}
 .ai-head{background:#1a237e;color:#fff;padding:12px 16px;font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px;flex-shrink:0}
 .ai-head .close{background:none;border:none;color:#fff;font-size:18px;cursor:pointer;margin-left:auto;opacity:.7}
@@ -116,8 +116,8 @@ body{font-family:'Microsoft YaHei','Segoe UI',sans-serif;background:#f0f2f5;colo
 .ai-dots span:nth-child(3){animation-delay:.4s}
 @keyframes aiBounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-5px)}}
 @media(max-width:480px){
-  .ai-bubble{right:10px;bottom:10px;width:44px;height:44px;font-size:18px}
-  .ai-panel{right:6px;left:6px;bottom:70px;width:auto;height:460px}
+  .ai-bubble{right:12px;bottom:12px;width:48px;height:48px;font-size:20px}
+  .ai-panel{right:6px;left:6px;bottom:72px;width:auto;height:460px;border-radius:12px}
 }
 </style>
 </head>
@@ -1154,9 +1154,11 @@ window.addEventListener('resize', function() {
 var AI_KEY = '78556801f1d24bc5a6bb2e0be17055ce.Ej6FvPwHu8WFTaPP';
 
 function toggleAi() {
-  document.getElementById('aiPanel').classList.toggle('open');
-  if (document.getElementById('aiPanel').classList.contains('open'))
+  var panel = document.getElementById('aiPanel');
+  panel.classList.toggle('open');
+  if (panel.classList.contains('open'))
     document.getElementById('aiInput').focus();
+  return false;
 }
 
 function aiSend() {
@@ -1401,7 +1403,7 @@ function buildAiCtx() {
 }
 
 </script>
-<div class="ai-bubble" id="aiBubble" onclick="toggleAi()">💬</div>
+<div class="ai-bubble" id="aiBubble" onclick="toggleAi()" ontouchend="event.preventDefault();toggleAi()">💬</div>
 <div class="ai-panel" id="aiPanel">
   <div class="ai-head">🤖 AI 数据助手<button class="close" onclick="toggleAi()">×</button></div>
   <div class="ai-chat" id="aiChat">
