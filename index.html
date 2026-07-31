@@ -1170,7 +1170,9 @@ function toggleChat() {
     document.getElementById('chatInput').focus();
   }
 }
-document.getElementById('chatLauncher').addEventListener('click', toggleChat);
+document.addEventListener('DOMContentLoaded', function() {
+  document.getElementById('chatLauncher').addEventListener('click', toggleChat);
+});
 
 function askSuggestion(btn) {
   document.getElementById('chatInput').value = btn.textContent;
