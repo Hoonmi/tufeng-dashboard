@@ -1206,7 +1206,7 @@ function precomputeAnswer(q) {
   var ym = null;
   var m = q.match(/(\d{4})[\s年-]*(\d{1,2})\s*月/);
   if (m) ym = m[1] + '-' + (('0'+m[2]).slice(-2));
-  else if (/7月|本月|当月|上月|6月|5月/.test(q)) {
+  else if (/当月|本月|最新|当前/.test(q) || /7月|6月|5月/.test(q)) {
     var months = raw.sales.map(function(r){return r.date.substring(0,7)}).filter(Boolean);
     if (months.length) ym = months.sort().reverse()[0];
   }
@@ -1216,6 +1216,72 @@ function precomputeAnswer(q) {
   var isDelivery = /交付|交车/.test(q);
   var isSales = /大定|订单|销售/.test(q);
   var wantSum = /总|多少|加|合计|加起来|加总|总和/.test(q);
+  var wantCompare = /环比|同比|对比|增长|下降/.test(q);
+
+  // 没明确指定数据类型时，默认按大定处理（销售是核心数据）
+  if (!isAfter && !isDelivery && !isSales) isSales = true;
+
+  // 环比 / 同比对比
+  if (wantCompare) {
+    var parts = ym.split('-');
+    var year = parseInt(parts[0]), month = parseInt(parts[1]);
+    var prevYm, prevLabel;
+    if (/同比/.test(q)) {
+      prevYm = (year - 1) + '-' + (month < 10 ? '0' + month : month);
+      prevLabel = '去年' + month + '月';
+    } else {
+      var prevM = month === 1 ? 12 : month - 1;
+      var prevY = month === 1 ? year - 1 : year;
+      prevYm = prevY + '-' + (prevM < 10 ? '0' + prevM : prevM);
+      prevLabel = month === 1 ? '去年12月' : '上月';
+    }
+
+    if (isSales) {
+      var curT = 0, prvT = 0, curB = {}, prvB = {};
+      raw.sales.forEach(function(r) {
+        var ym2 = r.date.substring(0,7);
+        if (ym2 === ym) { curT += r.count; curB[r.store] = (curB[r.store]||0) + r.count; }
+        if (ym2 === prevYm) { prvT += r.count; prvB[r.store] = (prvB[r.store]||0) + r.count; }
+      });
+      var pct = prvT > 0 ? ((curT - prvT) / prvT * 100).toFixed(1) : 'N/A';
+      var lines = ['### ' + ym + ' vs ' + prevYm + ' 大定对比',
+        '- ' + ym + ' 总台数: ' + curT + ' 台',
+        '- ' + prevYm + ' (' + prevLabel + ') 总台数: ' + prvT + ' 台',
+        '- 环比变化: ' + (pct === 'N/A' ? 'N/A' : (parseFloat(pct) >= 0 ? '+' : '') + pct + '%'),
+        '',
+        '#### ' + ym + ' 各门店:'];
+      Object.keys(curB).sort().forEach(function(s) { lines.push('- ' + s + ': ' + curB[s] + ' 台'); });
+      lines.push('', '#### ' + prevYm + ' 各门店:');
+      Object.keys(prvB).sort().forEach(function(s) { lines.push('- ' + s + ': ' + prvB[s] + ' 台'); });
+      return lines.join('\n');
+    }
+    if (isAfter) {
+      var curV = 0, prvV = 0, curVB = {}, prvVB = {};
+      raw.aftersales.forEach(function(r) {
+        var ym2 = r.date.substring(0,7);
+        if (ym2 === ym) { curV += r.value; curVB[r.store] = (curVB[r.store]||0) + r.value; }
+        if (ym2 === prevYm) { prvV += r.value; prvVB[r.store] = (prvVB[r.store]||0) + r.value; }
+      });
+      var pct2 = prvV > 0 ? ((curV - prvV) / prvV * 100).toFixed(1) : 'N/A';
+      return ['### ' + ym + ' vs ' + prevYm + ' 售后产值对比',
+        '- ' + ym + ' 总产值: ' + curV.toFixed(1) + ' 万元',
+        '- ' + prevYm + ' 总产值: ' + prvV.toFixed(1) + ' 万元',
+        '- 变化: ' + (pct2 === 'N/A' ? 'N/A' : (parseFloat(pct2) >= 0 ? '+' : '') + pct2 + '%')].join('\n');
+    }
+    if (isDelivery) {
+      var curD = 0, prvD = 0;
+      raw.delivery.forEach(function(r) {
+        var ym2 = r.date.substring(0,7);
+        if (ym2 === ym) curD += r.total;
+        if (ym2 === prevYm) prvD += r.total;
+      });
+      var pct3 = prvD > 0 ? ((curD - prvD) / prvD * 100).toFixed(1) : 'N/A';
+      return ['### ' + ym + ' vs ' + prevYm + ' 交付对比',
+        '- ' + ym + ': ' + curD + ' 台',
+        '- ' + prevYm + ': ' + prvD + ' 台',
+        '- 变化: ' + (pct3 === 'N/A' ? 'N/A' : (parseFloat(pct3) >= 0 ? '+' : '') + pct3 + '%')].join('\n');
+    }
+  }
 
   if (isAfter && wantSum) {
     var totalV = 0, byStore = {};
@@ -1229,7 +1295,7 @@ function precomputeAnswer(q) {
     Object.keys(byStore).sort().forEach(function(s) { lines.push('- ' + s + ': ' + byStore[s].toFixed(1) + ' 万'); });
     return lines.join('\n');
   }
-  if ((isSales || (!isAfter && !isDelivery)) && wantSum) {
+  if (isSales && wantSum) {
     var totalC = 0, byStore2 = {};
     raw.sales.forEach(function(r) {
       if (r.date.substring(0,7) === ym) {
