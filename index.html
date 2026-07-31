@@ -1168,7 +1168,12 @@ function aiSend() {
   dots.className = 'm bot'; dots.innerHTML = '<div class="ai-dots"><span></span><span></span><span></span></div>';
   chat.scrollTop = chat.scrollHeight;
 
+  // 前端预处理：直接算出加总类问题，避免 LLM 做算术出错
+  var precomputed = precomputeAnswer(q);
   var ctx = buildAiCtx();
+  var sysContent = '你是途峰集团16家汽车经销商的数据分析助手。下方数据按"YYYY-MM: 门店=数值"格式呈现，每个数据点都明确标注了年月和门店名称。重要规则：(1) 严格按"YYYY-MM"标签读取，不要把2026-06的数字误算到2026-07；(2) 不要做任何加法、乘法、百分比等算术运算，所有计算结果都由系统预计算好提供给你，你只负责解读数字、组织语言；(3) 单位：大定/交付=台，售后产值=万元。用中文，简洁专业。' + ctx;
+  if (precomputed) sysContent += '\n\n## 系统已预计算的结果\n' + precomputed + '\n请基于以上预计算结果回答用户问题，不要重复计算。';
+
   var xhr = new XMLHttpRequest();
   xhr.open('POST', 'https://open.bigmodel.cn/api/paas/v4/chat/completions', true);
   xhr.setRequestHeader('Content-Type', 'application/json');
@@ -1189,9 +1194,66 @@ function aiSend() {
   xhr.onerror = function() { dots.remove(); chat.innerHTML += '<div class="m bot">网络错误，请检查网络连接。</div>'; chat.scrollTop = chat.scrollHeight; };
   xhr.ontimeout = function() { dots.remove(); chat.innerHTML += '<div class="m bot">请求超时，请重试。</div>'; chat.scrollTop = chat.scrollHeight; };
   xhr.send(JSON.stringify({model:'glm-4-flash', messages: [
-    {role:'system', content: '你是途峰集团16家汽车经销商的数据分析助手。下方数据按"YYYY-MM: 门店=数值"格式呈现，每个数据点都明确标注了年月。请严格按月份标签读取数据，不要把2026-06的数字误算到2026-07。单位：大定/交付=台，售后产值=万元。用中文，简洁专业。' + ctx},
+    {role:'system', content: sysContent},
     {role:'user', content: q}
-  ], temperature: 0.2, max_tokens: 800}));
+  ], temperature: 0.1, max_tokens: 800}));
+}
+
+// 前端预计算常见加总类问题，避免 LLM 做算术出错
+function precomputeAnswer(q) {
+  if (!window.rawData) return '';
+  var raw = window.rawData;
+  var ym = null;
+  var m = q.match(/(\d{4})[\s年-]*(\d{1,2})\s*月/);
+  if (m) ym = m[1] + '-' + (('0'+m[2]).slice(-2));
+  else if (/7月|本月|当月|上月|6月|5月/.test(q)) {
+    var months = raw.sales.map(function(r){return r.date.substring(0,7)}).filter(Boolean);
+    if (months.length) ym = months.sort().reverse()[0];
+  }
+  if (!ym) return '';
+
+  var isAfter = /售后|进厂|产值|维修|保养/.test(q);
+  var isDelivery = /交付|交车/.test(q);
+  var isSales = /大定|订单|销售/.test(q);
+  var wantSum = /总|多少|加|合计|加起来|加总|总和/.test(q);
+
+  if (isAfter && wantSum) {
+    var totalV = 0, byStore = {};
+    raw.aftersales.forEach(function(r) {
+      if (r.date.substring(0,7) === ym) {
+        byStore[r.store] = (byStore[r.store]||0) + r.value;
+        totalV += r.value;
+      }
+    });
+    var lines = ['### ' + ym + ' 售后总产值 = ' + totalV.toFixed(1) + ' 万元'];
+    Object.keys(byStore).sort().forEach(function(s) { lines.push('- ' + s + ': ' + byStore[s].toFixed(1) + ' 万'); });
+    return lines.join('\n');
+  }
+  if ((isSales || (!isAfter && !isDelivery)) && wantSum) {
+    var totalC = 0, byStore2 = {};
+    raw.sales.forEach(function(r) {
+      if (r.date.substring(0,7) === ym) {
+        byStore2[r.store] = (byStore2[r.store]||0) + r.count;
+        totalC += r.count;
+      }
+    });
+    var lines2 = ['### ' + ym + ' 大定总台数 = ' + totalC + ' 台'];
+    Object.keys(byStore2).sort().forEach(function(s) { lines2.push('- ' + s + ': ' + byStore2[s] + ' 台'); });
+    return lines2.join('\n');
+  }
+  if (isDelivery && wantSum) {
+    var totalD = 0, byStore3 = {};
+    raw.delivery.forEach(function(r) {
+      if (r.date.substring(0,7) === ym) {
+        byStore3[r.store] = (byStore3[r.store]||0) + r.total;
+        totalD += r.total;
+      }
+    });
+    var lines3 = ['### ' + ym + ' 交付总台数 = ' + totalD + ' 台'];
+    Object.keys(byStore3).sort().forEach(function(s) { lines3.push('- ' + s + ': ' + byStore3[s] + ' 台'); });
+    return lines3.join('\n');
+  }
+  return '';
 }
 
 function buildAiCtx() {
