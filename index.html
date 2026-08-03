@@ -291,6 +291,7 @@ var selectedStores = [];
 var selectedModels = [];
 var filterMonthStart = '';
 var filterMonthEnd = '';
+var availableMonths = [];
 
 function getYM(d) { return d.substring(0,7); }
 function getY(d) { return parseInt(d.substring(0,4)); }
@@ -1163,6 +1164,21 @@ function renderJipan() {
 
   // ============ 初始化 ============
 function initFilters() {
+  // 从数据动态生成月份列表
+  var months = new Set();
+  if (window.rawData && window.rawData.sales) {
+    window.rawData.sales.forEach(function(r) {
+      var ym = r.date && r.date.substring(0,7);
+      if (ym) months.add(ym);
+    });
+  }
+  if (window.rawData && window.rawData.delivery) {
+    window.rawData.delivery.forEach(function(r) {
+      var ym = r.date && r.date.substring(0,7);
+      if (ym) months.add(ym);
+    });
+  }
+  availableMonths = Array.from(months).sort();
   var startSel = document.getElementById('filterMonthStart');
   var endSel = document.getElementById('filterMonthEnd');
   availableMonths.forEach(function(m) {
