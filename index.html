@@ -259,7 +259,7 @@ body{font-family:'Microsoft YaHei','Segoe UI',sans-serif;background:#f0f2f5;colo
 async function unlock() {
   var pw = document.getElementById('pwInput').value;
   if (!pw) return;
-  if (!window.__enc) { showDash(); return; }
+  if (!window.__enc) { showDash(); initFilters(); refreshAll(); return; }
   try {
     var raw = await decryptData(window.__enc, pw);
     window.rawData = JSON.parse(raw);
@@ -1164,6 +1164,32 @@ function renderJipan() {
 
   // ============ 初始化 ============
 function initFilters() {
+  // 动态计算 allStores / allModels（加密版 data.js 不含这些变量）
+  if (!window.allStores || !allStores.length) {
+    var stSet = new Set();
+    var mdSet = new Set();
+    if (window.rawData && window.rawData.sales) {
+      window.rawData.sales.forEach(function(r) {
+        if (r.store) stSet.add(r.store);
+        if (r.model) mdSet.add(r.model);
+      });
+    }
+    if (window.rawData && window.rawData.delivery) {
+      window.rawData.delivery.forEach(function(r) {
+        if (r.store) stSet.add(r.store);
+      });
+    }
+    if (window.rawData && window.rawData.jipan) {
+      window.rawData.jipan.forEach(function(j) {
+        if (j.store) stSet.add(j.store);
+      });
+    }
+    window.allStores = Array.from(stSet).sort();
+    allStores = window.allStores;
+    window.allModels = Array.from(mdSet).sort();
+    allModels = window.allModels;
+  }
+
   // 从数据动态生成月份列表
   var months = new Set();
   if (window.rawData && window.rawData.sales) {
