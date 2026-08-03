@@ -264,6 +264,7 @@ async function unlock() {
     var raw = await decryptData(window.__enc, pw);
     window.rawData = JSON.parse(raw);
     showDash();
+    initFilters();
     refreshAll();
   } catch(e) {
     document.getElementById('pwErr').style.display = 'block';
